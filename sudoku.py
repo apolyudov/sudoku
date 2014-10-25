@@ -1,21 +1,30 @@
 #!/usr/bin/python
 class Sudoku(object):
-    def __init__(self, dim=3,seed=None):
+    def __init__(self, dim=3,alfa=None,seed=None):
         self.dim=d=int(dim)
-        if d < 2 or d > 6 or type(dim) is not int: raise ValueError("dimention must be positive integer [2..6], but %r is given" % dim)
+        if d < 2 or d > 99 or type(dim) is not int: raise ValueError("dimension must be positive integer [2..99], but %r is given" % dim)
         self.sq_dim = sq_dim = d * d
         self.total = sq_dim * sq_dim
         self.grp={} # closed group lookup table
         self.defval='.'
-        self.alfabet = (
-        '1234' if dim == 2
-        else ('123456789' if dim == 3
-        else ('0123456789ABCDEF' if dim == 4
-        else ('ABCDEFGHIJKLMNOPQRSTUVWXY' if dim == 5
-        else ('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ' if dim == 6
-        else   None)))))
-        if not self.alfabet: raise ValueError('custom alfabet (iterable) for dim=%d with size %d must be defined' % (d, sq_dim))
+        all_alfa = {
+        2: '1234',
+        3: '123456789',
+        4: '0123456789ABCDEF',
+        5: 'ABCDEFGHIJKLMNOPQRSTUVWXY',
+        6: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        }
+        if alfa:
+            alfa = tuple(alfa)
+            all_alfa[dim] = alfa[1:]
+            self.defval = alfa[0]
+        self.alfabet = all_alfa[dim]
+        self.sep=''
+        if not self.alfabet:
+            raise ValueError('custom alphabet (iterable) for dim=%d with size %d must be defined' % (d, sq_dim))
         self.set_all = set(self.alfabet)
+        if not len(self.set_all) == self.sq_dim:
+            raise ValueError('custom alphabet size for dim=%d must have size %d, but %d is given' % (d, sq_dim, len(self.set_all)))
         self.data = tuple(Elem(self,i) for i in xrange(self.total))
         self.InitRand()
         self.check = False
@@ -24,7 +33,7 @@ class Sudoku(object):
         self.Populate(seed)
 
     def Export(self):
-        return "".join(x.val if x.val != None else self.defval for x in self.data)
+        return self.sep.join(str(x.val) if x.val != None else self.defval for x in self.data)
 
     def InitRand(self):
         from random import Random
@@ -35,11 +44,11 @@ class Sudoku(object):
         rows = tuple(Row(self,n) for n in xrange(self.sq_dim))
         cols = tuple(Col(self,n) for n in xrange(self.sq_dim))
 
-        self.sets = (squares,rows,cols)
+        self.all_esets = (squares,rows,cols)
 
         plain_sets = []
-        for es in self.sets:
-            plain_sets.extend(es)
+        for esets in self.all_esets:
+            plain_sets.extend(esets)
         self.plain_sets = tuple(plain_sets)
 
         # now that we have sets defined, let's find crossings
@@ -57,8 +66,8 @@ class Sudoku(object):
                 x.BindCrossing(cr)
 
         for e in self.plain_sets:
-           for x in e.data:
-               x.Bind(e)
+            for x in e.data:
+                x.Bind(e)
 
         for x in self.data: x.BindComplete()
 
@@ -71,7 +80,7 @@ class Sudoku(object):
     def Hint(self,n=None):
         if n == None: n = 1
         sav=self.Export()
-        res,path=self.Solve(steps=n)
+        _, path=self.Solve(steps=n)
         self.Populate(sav)
         return path
 
@@ -108,11 +117,11 @@ class Sudoku(object):
             self.SetSync(False)
             res = True
             i=0
-            imax=0
             for x in self.data: x.fixed = x.HasVal()
             while i < self.total:
                 x = self.data[i]
-                if(dbg): print "load: x[%d]=%s; maybe=%s; failed=%s; fixed=%s" % (x.pos,x.val,x.maybe,x.failed,x.fixed)
+                if(dbg):
+                    print "load: x[%d]=%s; maybe=%s; failed=%s; fixed=%s" % (x.pos,x.val,x.maybe,x.failed,x.fixed)
                 if x.fixed:
                     i=i+1
                     continue
@@ -134,7 +143,8 @@ class Sudoku(object):
                 else:
                     v=t[self.rand.randint(0,len(t)-1)]
                     x.setval(v)
-                    if(dbg): print "assign: x[%d]=%s; maybe=%s; failed=%s; fixed=%s" % (x.pos,x.val,x.maybe,x.failed,x.fixed)
+                    if(dbg):
+                        print "assign: x[%d]=%s; maybe=%s; failed=%s; fixed=%s" % (x.pos,x.val,x.maybe,x.failed,x.fixed)
                     i=i+1
                         
         except AttributeError, e:
@@ -142,57 +152,82 @@ class Sudoku(object):
             raise
         except ValueError, e:
             print e
+            raise
             res = False
         finally:
             self.SetSync(True)
             self.check=True
         return res
 
-    # Generating with a "SolveHard", reducing with "Solve"
-    def GenHard(self,init=True):
+    # Generating with a "SolveHard",
+    # reducing randomly,
+    # verifying with "Solve"
+    def GenHard(self,init=True,seed=None):
         def can_remove(pos):
+            gen=self.Export()
+            new_gen = gen
+            res = False
+            # all path manipulations are for debugging only
+            good_path=[]
             try:
-                gen=self.Export()
                 self.data[pos].setval(None)
-                res,path=self.Solve()
-            except:
-                res=False
+                new_gen = self.Export()
+                self.Populate()
+                self.Populate(new_gen)
+                res, path = self.Solve()
+                if res:
+                    good_path=path
+            except Exception, e:
+                print 'exception while solving:', e
+                print pos
+                raise
+                res = False
             finally:
+                self.Populate()
                 self.Populate(gen)
-            return res
+            return res, good_path
 
         def reduce_random():
             cnt=0
+            good_path = []
             while(True):
                 pos = self.rand.randint(0,self.total-1)
                 if not self.data[pos].HasVal(): continue
-                if can_remove(pos):
+                res, path = can_remove(pos)
+                if res:
                     self.data[pos].setval(None)
                     cnt+=1
+                    good_path = path
                 else:
-                    return cnt
+                    return cnt, good_path
 
         if init:
-            self.Populate()
-            self.SolveHard()
+            self.Populate(seed)
+            if not seed:
+                self.SolveHard()
 
         stable=0
+        good_path = []
         while(True):
-            if not reduce_random():
+            res, path = reduce_random()
+            if not res:
                 stable += 1
             else:
                 stable=0
+                good_path = path
             if stable == self.sq_dim: break
         Done=False
         while(not Done):
             for x in self.data:
                 if not x.HasVal(): continue
-                if can_remove(x):
+                res, path = can_remove(x.pos)
+                if res:
                     x.setval(None)
+                    good_path = path
                     break
             else:
                 Done=True
-        return self.Export().count(self.defval)
+        return self.Export().count(self.defval), good_path
 
     def SolveSimple(self,explain,solution):
         res = False
@@ -211,16 +246,21 @@ class Sudoku(object):
         res = False
         self.UpdateClosedGroups()
         for g in self.grp.values():
-            if not g.applied:
-                modified=g.Apply(explain)
-                if modified:
-                    res = True
-                    if explain: solution.append(('group',
-                                     tuple(g.data)[0].alt_tuple(), # values in the group
-                                     tuple(x.pos for x in g.data),  # cell numbers of the group
-                                     tuple(m.pos for m in modified),# modified cell list, number of remaining alternatives
-                                     g.eset.name,g.eset.pos))       # dataset position and name (row, col, sq)
+            modified=g.Apply()
+            if modified:
+                res = True
+                if explain:
+                    step = ('group',
+                            tuple(g.data)[0].alt_tuple(), # values in the group
+                            tuple(x.pos for x in g.data),  # cell numbers of the group
+                            tuple(m.pos for m in modified),# modified cell list, number of remaining alternatives
+                            g.eset.name,g.eset.pos)
+                    solution.append(step)       # dataset position and name (row, col, sq)
         return res
+
+    def Groups(self):
+        self.UpdateClosedGroups()
+        return self.grp
 
     def SolveCrossings(self, explain, solution):
         res = False
@@ -231,22 +271,35 @@ class Sudoku(object):
 
         return res
 
-    def Solve(self,explain=False,steps=None):
+    def Solve(self, explain=False, steps=None):
         self.check=True
-        if steps != None: explain=True
+        if not self.sync:
+            self.SetSync(True)
+        complete = True
+        if steps != None:
+            explain=True
+            complete = False
         res = True
         solution=[]
         while res:
-            if(steps != None and len(solution) >= steps): return True, solution[:steps]
+            if(steps != None and len(solution) >= steps):
+                solution = solution[:steps]
+                res = True
+                break
             res = self.SolveSimple(explain,solution)
-            if not res:
-                res = self.SolveCrossings(explain,solution)
-            if not res:
-                res = self.SolveGroups(explain,solution)
+            if res: continue
+            res = self.SolveCrossings(explain,solution)
+            if res: continue
+            res = self.SolveGroups(explain,solution)
 
-        for x in self.data:
-            if x.val is None: return False, solution
-        return True,solution
+        if complete:
+            todo = filter(lambda x: not x.HasVal(), self.data)
+            if len(todo):
+                res = False
+            else:
+                res = True
+
+        return res, solution
 
     def FindTuples(self,size=1):
         tuples=[]
@@ -266,9 +319,10 @@ class Sudoku(object):
         return uniques
 
     def UpdateClosedGroups(self):
-        for se in self.sets:
-            for e in se:
-                e.UpdateClosedGroups()
+        self.grp={}
+        for esets in self.all_esets:
+            for eset in esets:
+                eset.UpdateClosedGroups()
 
     def AddGrp(self,grp):
         key=(grp.eset,grp.val)
@@ -279,6 +333,10 @@ class Sudoku(object):
             x.addgrp(grp)
         return grp
 
+class Move(object):
+    def __init__(self, pos, val, explain):
+        pass
+
 class Group(object):
     def __init__(self,owner,eset,val,lst):
         self.owner = owner
@@ -286,34 +344,31 @@ class Group(object):
         self.val = tuple(val)  # set of values in the group
         self.data = lst # list of items in the group
         self.applied = False
-    def Apply(self,explain=False):
+    def Apply(self):
         if self.applied: return None
         self.applied = True
         val = set(self.val)
-        if explain:
-            modified=set([])
-            for x in self.eset.data:
-                if x not in self.data:
-                    tmp=x.alt_size()
-                    x.remove(val)
-                    if tmp != x.alt_size():
-                        modified.add(x)
-            return modified
-        else:
-            for x in self.eset.data:
-                if x not in self.data:
-                    x.remove(val)
-            return True
+        modified=set([])
+        for x in self.eset.data:
+            if x not in self.data:
+                tmp=x.alt_size()
+                x.remove(val)
+                if tmp != x.alt_size():
+                    modified.add(x)
+        return modified
             
     def remove(self,e):
         self.data = self.data - set([e])
         self.applied=True
         if len(self.data) > 1:
-           val = tuple(x.val for x in self.data)
-           self.owner.AddGrp(Group(self.owner,self.eset,val,self.data))
+            val = tuple(x.val for x in self.data)
+            self.owner.AddGrp(Group(self.owner,self.eset,val,self.data))
         else:
-           for x in self.data:
-               x.remgrp(self)
+            for x in self.data:
+                x.remgrp(self)
+                
+    def __repr__(self):
+        return '{Group: %s; cells: %s in %s}' % (self.val, self.data, self.eset.Name())
 
 class Crossing(object):
     def __init__(self,parent,cross,a,b):
@@ -337,6 +392,8 @@ class Crossing(object):
             if applied and explain:
                 solution.append(('cross',delta,self,b_obj))
         return applied
+    def __repr__(self):
+        return 'Crossing: [%s]' % (self.data,)
 
 class ElemSet(object):
     name = "eset"
@@ -344,57 +401,100 @@ class ElemSet(object):
         self.parent = puzzle
         self.pos = pos
         self.data = None
+        
+    def Name(self):
+        return '%s[%s]' % (self.name, ",".join(str(int(x)+1) for x in self.pos))
 
+    def __repr__(self):
+        return '%s: {%s}' % (self.Name(), self.data)
+
+    def _make_maybe_set(self):
+        return set(filter(lambda x:x.maybe != None and x.val == None,(x for x in self.data)))
+
+    def _add_elem_to_grp(self, grps, key, val):
+        grp = grps.get(key, None)
+        if grp == None:
+            grp = set([])
+            grps[key] = val
+            changed = True
+        elif not val.issubset(grp):
+            grp.update(val)
+            changed = True
+        else:
+            changed = False
+        
+        return changed
+
+    # find all the cells in the set with exactly
+    # same maybe list
+    def _find_exact_groups(self, maybe_set):
+        grps = {}
+        # build the set of cells with the same maybe set
+        for x in maybe_set:
+            self._add_elem_to_grp(grps, frozenset(x.alt_tuple()), set([x]))
+        return grps
+
+    def _add_groups(self, grps, maybe_set):
+        added=[]
+        for grpval, eset in grps.items():
+            if len(eset) == 1 or len(eset) == len(maybe_set):
+                # groups containing 1 element or all elements
+                # are trivial (do not bring new info for analysis)
+                continue
+            if len(grpval) == len(eset):
+                # add group to parent set
+                self.parent.AddGrp(Group(self.parent,self,grpval,eset))
+                # remove group members from maybe_set
+                added.append(eset)
+        return added
+
+    # if size of group matches size of maybe list for the group,
+    # this is a closed group  
     def UpdateClosedGroups(self):
-        sz={}
-        for x in self.data:
-            if x.HasVal(): continue
-            xm=x.alt_tuple()
-            grp=sz.get(xm,None)
-            if not grp:
-                sz[xm]=set([x])
-            else:
-                grp.add(x)
-        for grpval,eset in sz.items():
-            if len(grpval) == len(eset):
-                self.parent.AddGrp(Group(self.parent,self,grpval,eset))
+        self.UpdateClosedGroupsOverlap()
 
-    def UpdateClosedGroupsNew(self):
-        sz={}
-        mx=filter(lambda x:x.maybe != None and x.val == None,(x for x in self.data))
-        lmx=len(mx)
-        #this is the optimization which is only good to look for pairs
-        for x in mx:
-            key=x.alt_tuple()
-            val=set([x])
-            grp=sz.get(key,None)
-            if not grp:
-                sz[key]=val
-            else:
-                grp.update(val)
-        if(lmx > 4):
-            lmx2=lmx/2
-            # now, the n-tuples search (but not pairs)
-            for j in xrange(lmx-1):
-                for i,x in enumerate(mx[j:lmx2+j]):
-                    pfx=mx[j:i+j+1]
-                    for y in mx[i+1:]:
-                        m = pfx + [y]
-                        # m is a current subset to test for possible subgroup
-                        u=set([])
-                        for e in m: u.update(e.maybe)
-                        key=tuple(u)
-                        if len(key) == lmx: continue # skip group of maximum size => not interesting
-                        val=set(m)
-                        grp=sz.get(key,None)
-                        if not grp:
-                            sz[key]=val
-                        else:
-                            grp.update(val)
-        # check all the keys (possible value sets) to be same size as group of referenced places: this will give us closed group
-        for grpval,eset in sz.items():
-            if len(grpval) == len(eset):
-                self.parent.AddGrp(Group(self.parent,self,grpval,eset))
+    # this is simplified implementation:
+    # requires that all N cells in group have exactly
+    #  the same N-tuple of maybe elements 
+    def UpdateClosedGroupsExact(self):
+        maybe_set = self._make_maybe_set()
+        grps = self._find_exact_groups(maybe_set)
+        return grps, maybe_set, self._add_groups(grps, maybe_set)
+        
+    # this is generic implementation:
+    # looks for any N-cell combination,
+    # that has overlapped maybe of size N 
+    def UpdateClosedGroupsOverlap(self):
+        # 1-st stage: looking for exact matches of 'maybe' sets
+        grps, maybe_set, added = self.UpdateClosedGroupsExact()
+        found = len(added)
+        for eset in added:
+            for e in eset:
+                maybe_set.discard(e)
+        if found > 0:
+            # rebuild groups from remaining cells only
+            grps = self._find_exact_groups(maybe_set)
+        # 2-nd stage: looking for matches of combinations of 'maybe' sets
+        if len(grps) > 0:
+            # with len == 3 group can only be pair
+            # pairs are guaranteed to be discovered by
+            # first stage
+            while True:
+                changed = False
+                for eset_maybe, eset in grps.items():
+                    # eset is set of cells that forms this combined eset_maybe set
+                    for e in maybe_set - eset:
+                        key_set = set(eset_maybe)
+                        key_set.update(set(e.alt_tuple()))
+                        val_set = set([])
+                        val_set.update(eset)
+                        val_set.add(e)
+                        if self._add_elem_to_grp(grps, frozenset(key_set), val_set):
+                            changed=True
+                if not changed: break
+            found = len(self._add_groups(grps, maybe_set))
+
+        return found
 
     def Unique(self,x):
         if x.val == None: return True
@@ -427,24 +527,18 @@ class Square(ElemSet):
             base = (ypos * dim + n) * sq_dim + xpos * dim
             sq.extend(parent.data[base:base + dim])
         self.data=tuple(sq)
-    def __repr__(self):
-        return "Square %r: %s\n" % (self.pos, self.data)
 
 class Row(ElemSet):
     name = "row"
     def __init__(self,parent,ypos):
         ElemSet.__init__(self,parent,(ypos,))
         self.data=tuple(parent.data[parent.sq_dim*ypos:parent.sq_dim*(ypos+1)])
-    def __repr__(self):
-        return "Row %d: %s\n" % (self.pos[0], self.data)
 
 class Col(ElemSet):
     name = "col"
     def __init__(self,parent,xpos):
         ElemSet.__init__(self,parent,(xpos,))
         self.data=tuple(parent.data[xpos::parent.sq_dim])
-    def __repr__(self):
-        return "Col %d: %s\n" % (self.pos[0], self.data)
 
 class Elem(object):
     def __init__(self,parent,pos,val=None,fixed=False):
@@ -538,7 +632,8 @@ class Elem(object):
         self.fixed=fixed
         self.failed=set([])
         self.grp=None
-        self.maybe=self.parent.set_all
+        self.maybe=set([])
+        self.maybe.update(self.parent.set_all)
 
     def addgrp(self,grp):
         if self.grp == None:
@@ -570,7 +665,7 @@ class Elem(object):
             self.maybe = None
 
     def HasVal(self):
-        return self.val != None
+        return self.val != None and self.val != self.parent.defval
 
     def IsValid(self):
         return reduce(lambda x,y:x and y, tuple(e._IsValid() for e in self.all_affected),True)

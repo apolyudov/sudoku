@@ -43,8 +43,8 @@ class SudokuView(object):
 
     def update(self,doc):
         self.doc=doc
-        self.rows = tuple(RowView(self,r) for r in filter(lambda x: type(x[0]) is sudoku.Row, (ds for ds in doc.sets))[0])
-        self.cols = filter(lambda x: type(x[0]) is sudoku.Col, (ds for ds in doc.sets))[0]
+        self.rows = tuple(RowView(self,r) for r in filter(lambda x: type(x[0]) is sudoku.Row, (ds for ds in doc.all_esets))[0])
+        self.cols = filter(lambda x: type(x[0]) is sudoku.Col, (ds for ds in doc.all_esets))[0]
 
     def PrintSolution(self,solution):
         sq_dim=self.doc.sq_dim
@@ -99,12 +99,32 @@ class SudokuView(object):
             i = i + 1
         print "  ", w*"-"
 
-    def edit(self):
+    def edit(self, interactive=True, read=None):
         shared = {
             "solution": [],
+            # turn 'possible values' hint on/ off for each cell
             "maybe":False,
             "quit": False,
+
+            # some predefined puzzles for debugging, the 'simple', 'medium', 'hard' are logically derivable, 'impossible' require guesswork
+            # impossible still must have single solution 
+            "games": [('..3.849.1...7....62.....4....5..6..9..49.16..9..5..8....2.....57....2...4.819.7..', 3, 'medium'),
+                      ('18.3.6......8............658.9.3..1..7.....2..3..4.7.652............3......5.7.39', 3, 'hard'),
+                      ('.12.....83...46........2.5...3......6...1...4..72..9.....63.74.73.42.........753.', 3, 'impossible'),
+                      ('36...AF072E4..5.9.......5...E3........2B9.6..4..542.E8....D...1.A09D.B.......7.C.'
+                       '.....6.......F..8..A..E..C..9.54...C.3.D.5...8B...1...F.0A..8.D.A.....4..3......E'
+                       '.7....4FB.....B...1.....8E.....3F....6A7..02.9.DB4F0......C.7..7.C.ED..B...6.11.E'
+                       '......50....4', 4, 'hard'),
+                      ('6..8..2......9.AC.9.6...4.....5......4....A.3.....5.01...8D3..2E....B..A01...4.84'
+                       '...E.93B.F......0.347..92.6...5..C..2...3.7.0.925..7B.E......0C.8..A...7F..1.E...'
+                       '318......CB.......3..1..0..7..........A5.2.68....D.C8............A..4B8..D2.F.32.'
+                       '....5C7.4...D', 4, 'hard'),
+                     ]
         }
+        if read == None:
+            def _read():
+                return raw_input('# ')
+            read = _read
         def _edit_pt(y,x,s):
             doc=self.doc
             sav=doc.Export()
@@ -119,11 +139,11 @@ class SudokuView(object):
                 print "This will invalidate puzzle if applied. Reverted"
             else:
                 try:
-                    res,path=doc.Solve()
+                    res,_=doc.Solve()
                     if not res:
                         print "This change leads to multiple possible solutions"
                     doc.Populate(new)
-                except ValueError, e:
+                except ValueError:
                     doc.Populate(sav)
                     print "This is unsolvable combination. Reverted"
         def _solve(steps=None,ns=shared):
@@ -142,7 +162,9 @@ class SudokuView(object):
             self.PrintSolution(ns['solution'])
             ns['solution']=[]
         def _solve_cross():
-            res=doc.SolveCrossings(True,[])
+            lst=[]
+            res=doc.SolveCrossings(True,lst)
+            self.PrintSolution(lst)
             return res
         def _solve_groups():
             lst=[]
@@ -154,14 +176,50 @@ class SudokuView(object):
             res=doc.SolveSimple(True,lst)
             self.PrintSolution(lst)
             return res
+        def _show_groups():
+            for g in doc.grp.values():
+                print g
+                
+        def _test_solver(ns, steps):
+            while steps > 0:
+                steps -= 1
+                _, path = doc.GenHard(init = True)
+                self.Show(ns['maybe'])
+                gen = doc.Export()
+                print gen
+                doc.Populate()
+                doc.Populate(gen)
+                if not _solve():
+                    print 'Test failed: steps=%d' % steps
+                    print 'Solution from generator'
+                    self.PrintSolution(path)
+                    break
+                self.PrintSolution(ns['solution'])
+            else:
+                print 'Test passed'
+        def _verify_solver(ns, idx):
+            doc = self.doc
+            games = ns['games']
+            if idx < 0 or idx >= len(games):
+                idx = 0
+                print "only %d validation games defined, selected 0" % len(games)
+            game_data, game_dim, game_complexity = games[idx]
+            if doc.dim != game_dim:
+                _new_dim(game_dim)
+                doc = self.doc
+            doc.Populate(game_data)
+            self.Show(ns['maybe'])
+            print 'New Game: dimension: %d; complexity: %s; total %d populated cells of %d' % (
+                   game_dim, game_complexity, len(filter(lambda c: c != '.', game_data)), len(game_data))
+            
         while(not shared['quit']):
-            cmd=raw_input("# ").split()
+            cmd=read().split()
             if len(cmd) == 0: continue
             try:
                 doc=self.doc
                 e=None
                 v={
-                'v': lambda ns: doc.Populate('.12.....83...46........2.5...3......6...1...4..72..9.....63.74.73.42.........753.'),
+                'v': lambda ns: _verify_solver(ns, int(cmd[1]) if len(cmd) > 1 else 0),
                 'd': lambda ns: _new_dim(int(cmd[1]) if len(cmd) > 1 else 3),
                 'e': lambda ns: _edit_pt(int(cmd[1])-1,int(cmd[2])-1,cmd[3]),
                 'clr': lambda ns: doc.Populate(),
@@ -170,22 +228,27 @@ class SudokuView(object):
                 'h': lambda ns: self.PrintSolution(doc.Hint(int(cmd[1]) if len(cmd) > 1 else None)),
                 'x': lambda ns: doc.Export(),
                 'i': lambda ns: doc.Populate(cmd[1]),
-                'g': lambda ns: reduce(lambda x,y: 'reduced: '+str(x)+', remain:'+str(doc.total-x),(doc.GenHard(),self.Show(ns['maybe']))),
+                'gen': lambda ns: reduce(lambda x,y: 'reduced: '+str(x)+', remain:'+str(doc.total-x),(doc.GenHard(init = True, seed = cmd[1] if len(cmd) > 1 else None)[0],self.Show(ns['maybe']))),
+                'grp': lambda ns: _show_groups(),
                 'p': lambda ns: _print_solution(ns),
                 's': lambda ns: _solve(int(cmd[1]) if len(cmd) > 1 else None),
                 'sc': lambda ns: _solve_cross(),
                 'sg': lambda ns: _solve_groups(),
                 'ss': lambda ns: _solve_simple(),
                 'sh': lambda ns: doc.SolveHard(),
+                'u': lambda ns: _test_solver(ns, int(cmd[1]) if len(cmd) > 1 else 1000),
                 'q': lambda ns: _asn('quit',True),
                 }[cmd[0]](shared)
                 if v != None: print v
             except KeyError,e:
-                pass
+                print e
+                raise
             except IndexError,e:
-                pass
+                print e
+                raise
             except ValueError,e:
-                pass
+                print e
+                raise
             finally:
                 if e != None:
                     print "invalid command [%s]: '%s'" % (e," ".join(cmd))
@@ -194,6 +257,7 @@ class SudokuPuzzle(object):
     def __init__(self,size=3):
         self.doc  = sudoku.Sudoku(size)
         self.view = SudokuView(self,self.doc)
+        self.debug = True
 
     def notify_change(self,view,doc):
         if self.view != view: return
