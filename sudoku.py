@@ -475,7 +475,7 @@ class ElemSet(object):
             # rebuild groups from remaining cells only
             grps = self._find_exact_groups(maybe_set)
         # 2-nd stage: looking for matches of combinations of 'maybe' sets
-        if len(grps) > 0:
+        if len(grps) > 3:
             # with len == 3 group can only be pair
             # pairs are guaranteed to be discovered by
             # first stage

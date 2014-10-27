@@ -106,9 +106,11 @@ class SudokuView(object):
             "maybe":False,
             "quit": False,
 
-            # some predefined puzzles for debugging, the 'simple', 'medium', 'hard' are logically derivable, 'impossible' require guesswork
+            # some predefined puzzles for debugging, the 'simple', 'medium', 'hard' are logically derivable,
+            # 'impossible' require guesswork
             # impossible still must have single solution 
             "games": [('..3.849.1...7....62.....4....5..6..9..49.16..9..5..8....2.....57....2...4.819.7..', 3, 'medium'),
+                      ('.61.....5...74......4.9....8.......7.7.3..1....58.....42.....18...96..52.3.......', 3, 'hard'),
                       ('18.3.6......8............658.9.3..1..7.....2..3..4.7.652............3......5.7.39', 3, 'hard'),
                       ('.12.....83...46........2.5...3......6...1...4..72..9.....63.74.73.42.........753.', 3, 'impossible'),
                       ('36...AF072E4..5.9.......5...E3........2B9.6..4..542.E8....D...1.A09D.B.......7.C.'
