@@ -5,7 +5,7 @@ sudoku in python
 
 Core sudoku solver and puzzle generator;
 
-0. Foreword
+0 Foreword
 
 This was a project to help me learn python.
 I decided to write something useful but fun. My daughter's favorite puzzle is sudoku. She solves them pretty well and I can not keep up. So I thought: why don't I write the sugoku puzzle generator and solver? That will let me understand the solving strategy and maybe improve my solving skills. So I did.
@@ -22,46 +22,36 @@ So I written the rule-based solver also.
 Both solvers and generator, as well as some debugging code is what I call Sudoku Solver core.
 Minimalistic Sudoku console is what I used for debugging and finally solving, both interactively and automatically.
 
-1. How to use
+1 How to use
 
 run puzzle.py
 it brings text console, which takes several commands, that let you generate and solve sudoku puzzles
 
-- load predefined game #0
-v 0
+- load predefined game #0: v 0
 
-- show currently loaded game
-t
+- show currently loaded game: t
 
-- turn on 'show maybe' mode (t will display possible values for non-solved elements)
-m 1
+- turn on 'show maybe' mode (t will display possible values for non-solved elements): m 1
 
-- solve the game
-s
+- solve the game: s
 
-- print the step-by-step explanation
-p
+- print the step-by-step explanation: p
 
--give a hint (next step)
-h
+-give a hint (next step): h
 
-- generate new game
-gen
+- generate new game: gen
 
-- clear game buffer
-clr
+- clear game buffer: clr
 
-- set a value N at position (x,y)
-e <y> <x> <N>
+- set a value N at position (x,y): e <y> <x> <N>
 
-- clear value at position (x,y)
-e <y> <x> .
+e.g.: e 3 4 7 will set value '7' to cell in row 3, col 4
 
-- export current state as a string
-x
+- clear value at position (x,y): e <y> <x> .
 
-- import game as a string, exported by 'x'
-i <string>
+- export current state as a string: x
+
+- import game as a string, exported by 'x': i <string>
 
 2. Details on solver and generator
 
