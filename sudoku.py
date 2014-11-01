@@ -2,12 +2,12 @@
 class Sudoku(object):
     def __init__(self, dim=3,alfa=None,seed=None):
         self.dim=d=int(dim)
-        if d < 2 or d > 99 or type(dim) is not int: raise ValueError("dimension must be positive integer [2..99], but %r is given" % dim)
+        if d < 2 or d > 99 or int(dim) != dim: raise ValueError("dimension must be positive integer [2..99], but %r is given" % dim)
         self.sq_dim = sq_dim = d * d
         self.total = sq_dim * sq_dim
         self.grp={} # closed group lookup table
         self.defval='.'
-        all_alfa = {
+        self.all_alfa = {
         2: '1234',
         3: '123456789',
         4: '0123456789ABCDEF',
@@ -16,9 +16,9 @@ class Sudoku(object):
         }
         if alfa:
             alfa = tuple(alfa)
-            all_alfa[dim] = alfa[1:]
+            self.all_alfa[dim] = alfa[1:]
             self.defval = alfa[0]
-        self.alfabet = all_alfa[dim]
+        self.alfabet = self.all_alfa[dim]
         self.sep=''
         if not self.alfabet:
             raise ValueError('custom alphabet (iterable) for dim=%d with size %d must be defined' % (d, sq_dim))
@@ -31,20 +31,50 @@ class Sudoku(object):
         self.Setup()
         self.SetSync(True)
         self.Populate(seed)
+        self.check = True
 
     def Export(self):
         return self.sep.join(str(x.val) if x.val != None else self.defval for x in self.data)
+
+    def ExportHex(self):
+        order = self.sq_dim+1
+        res = 0
+        for e in self.data:
+            idx = self.alfabet.find(e.val) + 1 if e.HasVal() else 0
+            res *= order
+            res += idx
+        res *= 100
+        res += self.dim
+        return '%X' % res
+
+    def ImportHex(self, s):
+        res = int(s, 16)
+        dim = res % 100
+        res -= dim
+        res /= 100
+        seed = ''
+        order = dim * dim + 1
+        if self.all_alfa.get(dim,None) == None:
+            raise ValueError('Input cannot be decoded: %s' % s)
+        self.alfabet = self.all_alfa[dim]
+
+        for i in xrange(pow(dim,4)):
+            idx = res % order
+            seed += (self.alfabet[idx-1] if idx > 0 else '.')
+            res -= idx
+            res /= order
+        self.Populate(seed)
 
     def InitRand(self):
         from random import Random
         self.rand=Random()
 
     def Setup(self):
-        squares = tuple(Square(self,n) for n in xrange(self.sq_dim))
-        rows = tuple(Row(self,n) for n in xrange(self.sq_dim))
-        cols = tuple(Col(self,n) for n in xrange(self.sq_dim))
+        self.squares = tuple(Square(self,n) for n in xrange(self.sq_dim))
+        self.rows = tuple(Row(self,n) for n in xrange(self.sq_dim))
+        self.cols = tuple(Col(self,n) for n in xrange(self.sq_dim))
 
-        self.all_esets = (squares,rows,cols)
+        self.all_esets = (self.squares, self.rows, self.cols)
 
         plain_sets = []
         for esets in self.all_esets:
@@ -76,6 +106,13 @@ class Sudoku(object):
 
     def IsValid(self):
         return reduce(lambda x,y: x and y, tuple(e.IsValid() for e in self.data), True)
+
+    def Validate(self):
+        invalid_list = []
+        for e in self.data:
+            if not e.IsValid():
+                invalid_list.append(e)
+        return invalid_list
 
     def Hint(self,n=None):
         if n == None: n = 1
@@ -110,7 +147,8 @@ class Sudoku(object):
 
     def SolveHard(self,dbg=False):
         if not self.IsValid():
-            print "Puzzle is not valid"
+            if dbg:
+                print "Puzzle is not valid"
             return False
         try:
             self.check = False
@@ -120,7 +158,7 @@ class Sudoku(object):
             for x in self.data: x.fixed = x.HasVal()
             while i < self.total:
                 x = self.data[i]
-                if(dbg):
+                if dbg:
                     print "load: x[%d]=%s; maybe=%s; failed=%s; fixed=%s" % (x.pos,x.val,x.maybe,x.failed,x.fixed)
                 if x.fixed:
                     i=i+1
@@ -130,7 +168,8 @@ class Sudoku(object):
                 if len(t) == 0:
                     x.failed=set([])
                     if i == 0:
-                        print "Puzzle is not solvable"
+                        if dbg:
+                            print "Puzzle is not solvable"
                         res = False
                         break
                     while i > 0:
@@ -143,7 +182,7 @@ class Sudoku(object):
                 else:
                     v=t[self.rand.randint(0,len(t)-1)]
                     x.setval(v)
-                    if(dbg):
+                    if dbg:
                         print "assign: x[%d]=%s; maybe=%s; failed=%s; fixed=%s" % (x.pos,x.val,x.maybe,x.failed,x.fixed)
                     i=i+1
                         
@@ -162,7 +201,7 @@ class Sudoku(object):
     # Generating with a "SolveHard",
     # reducing randomly,
     # verifying with "Solve"
-    def GenHard(self,init=True,seed=None):
+    def GenHard(self,init=True,seed=None, full=False):
         def can_remove(pos):
             gen=self.Export()
             new_gen = gen
@@ -203,7 +242,7 @@ class Sudoku(object):
 
         if init:
             self.Populate(seed)
-            if not seed:
+            if not seed or full:
                 self.SolveHard()
 
         stable=0
@@ -281,9 +320,10 @@ class Sudoku(object):
             complete = False
         res = True
         solution=[]
+        solution.append(('doc',self))
         while res:
-            if(steps != None and len(solution) >= steps):
-                solution = solution[:steps]
+            if(steps != None and len(solution) > steps):
+                solution = solution[:steps+1]
                 res = True
                 break
             res = self.SolveSimple(explain,solution)
@@ -600,6 +640,8 @@ class Elem(object):
             if self.sync: self.update_set(self.all_affected)
 
         if val != None:
+            if self.parent.check and val not in self.parent.alfabet:
+                raise ValueError('Incorrect input: %s' % val)
             self.val = val
             self.fixed = fixed
             self.maybe = None
@@ -667,10 +709,10 @@ class Elem(object):
     def HasVal(self):
         return self.val != None and self.val != self.parent.defval
 
-    def IsValid(self):
-        return reduce(lambda x,y:x and y, tuple(e._IsValid() for e in self.all_affected),True)
+#    def IsValid(self):
+#        return reduce(lambda x,y:x and y, tuple(e._IsValid() for e in self.all_affected),True)
 
-    def _IsValid(self): return (self.val != None and self.Unique()) or (self.maybe != None and len(self.maybe) > 0)
+    def IsValid(self): return (self.val != None and self.Unique()) or (self.maybe != None and len(self.maybe) > 0)
 
     def __repr__(self):
         return "[%d: %s]" % (self.pos, self.val if self.HasVal() else (list(self.maybe) if self.maybe != None else None))

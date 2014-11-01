@@ -1,4 +1,4 @@
-import sudoku
+from sudoku import Sudoku, Row, Col
 
 class RowView(object):
     def __init__(self,parent,row):
@@ -33,6 +33,33 @@ class RowView(object):
                 print "|",
         print
 
+def PrintSolution(solution):
+    sq_dim = 9
+    def pos(x): return "y:%2d,x:%2d" % (x/sq_dim+1,x%sq_dim+1)
+    def eset_pos(x):
+        if len(x) == 1:
+            return "# %2d" % (int(x[0])+1)
+        else:
+            return "# <y:%d, x:%d>" % (x[0]+1,x[1]+1)
+    def vals(x): return "[%s]" % ", ".join(v for v in x)
+    def cells(c): return "{C#[%s]}" % "], C#[".join(pos(x) for x in c)
+    for step in solution:
+        mode=step[0]
+        if mode == "doc":
+            sq_dim = step[1].sq_dim
+        elif mode == "group":
+            print "Group: %s @ %s; reduction: %s in %s %s" % (
+                vals(step[1]), cells(step[2]), cells(step[3]), step[4], eset_pos(step[5]))
+        elif mode == "cross":
+            delta=step[1]
+            cr=step[2]
+            e=step[3]
+            print "cross: reducing:",delta,"on cross of",cr.a_obj.name,cr.a_obj.pos,cr.b_obj.name,cr.b_obj.pos,"reduction at",e.name,e.pos
+        elif mode == "tuples":
+            print "C#[%s]: '%s' ; last on crossing" % (pos(step[1]),step[2])
+        else:
+            print "C#[%s]: '%s' ; last alternative in %s" % (pos(step[0]), step[1], step[2])
+
 class SudokuView(object):
     def __init__(self,parent,doc):
         self.parent=parent
@@ -43,33 +70,8 @@ class SudokuView(object):
 
     def update(self,doc):
         self.doc=doc
-        self.rows = tuple(RowView(self,r) for r in filter(lambda x: type(x[0]) is sudoku.Row, (ds for ds in doc.all_esets))[0])
-        self.cols = filter(lambda x: type(x[0]) is sudoku.Col, (ds for ds in doc.all_esets))[0]
-
-    def PrintSolution(self,solution):
-        sq_dim=self.doc.sq_dim
-        def pos(x): return "y:%2d,x:%2d" % (x/sq_dim+1,x%sq_dim+1)
-        def eset_pos(x):
-            if len(x) == 1:
-                return "# %2d" % (int(x[0])+1)
-            else:
-                return "# <y:%d, x:%d>" % (x[0]+1,x[1]+1)
-        def vals(x): return "[%s]" % ", ".join(v for v in x)
-        def cells(c): return "{C#[%s]}" % "], C#[".join(pos(x) for x in c)
-        for step in solution:
-            mode=step[0]
-            if mode == "group":
-                print "Group: %s @ %s; reduction: %s in %s %s" % (
-                    vals(step[1]), cells(step[2]), cells(step[3]), step[4], eset_pos(step[5]))
-            elif mode == "cross":
-                delta=step[1]
-                cr=step[2]
-                e=step[3]
-                print "cross: reducing:",delta,"on cross of",cr.a_obj.name,cr.a_obj.pos,cr.b_obj.name,cr.b_obj.pos,"reduction at",e.name,e.pos
-            elif mode == "tuples":
-                print "C#[%s]: '%s' ; last on crossing" % (pos(step[1]),step[2])
-            else:
-                print "C#[%s]: '%s' ; last alternative in %s" % (pos(step[0]), step[1], step[2])
+        self.rows = tuple(RowView(self,r) for r in filter(lambda x: type(x[0]) is Row, (ds for ds in doc.all_esets))[0])
+        self.cols = filter(lambda x: type(x[0]) is Col, (ds for ds in doc.all_esets))[0]
 
     def Show(self,show_maybe=True):
         cw=[]
@@ -158,10 +160,10 @@ class SudokuView(object):
             ns[var] = val
             print var,'=',ns[var]
         def _new_dim(dim):
-            self.update(sudoku.Sudoku(dim))
+            self.update(Sudoku(dim))
             self.notify_change()
         def _print_solution(ns):
-            self.PrintSolution(ns['solution'])
+            PrintSolution(ns['solution'])
             ns['solution']=[]
         def _solve_cross():
             lst=[]
@@ -257,7 +259,7 @@ class SudokuView(object):
 
 class SudokuPuzzle(object):
     def __init__(self,size=3):
-        self.doc  = sudoku.Sudoku(size)
+        self.doc  = Sudoku(size)
         self.view = SudokuView(self,self.doc)
         self.debug = True
 
@@ -272,9 +274,7 @@ class SudokuPuzzle(object):
     def run(self):
         self.view.edit()
 
-def main(argv):
+def main_console(argv):
     sd=SudokuPuzzle(3)
     sd.run()
     return sd
-
-if __name__ == "__main__": sd=main([])
