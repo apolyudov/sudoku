@@ -1,3 +1,4 @@
+import sys
 from sudoku import Sudoku, Row, Col
 
 class RowView(object):
@@ -32,38 +33,6 @@ class RowView(object):
             if i in range(row.parent.dim,row.parent.sq_dim,row.parent.dim):
                 print "|",
         print
-
-def PrintSolution(solution):
-    sq_dim = 9
-    def pos(x): return "y:%2d,x:%2d" % (x/sq_dim+1,x%sq_dim+1)
-    def eset_pos(x):
-        if len(x) == 1:
-            return "# %2d" % (int(x[0])+1)
-        else:
-            return "# <x:%d, y:%d>" % (x[0]+1,x[1]+1)
-    def vals(x): return "[%s]" % ", ".join(v for v in x)
-    def cell(c): return "C#[%s]" % pos(c.pos)
-    def cells(cl): return "{%s}" % ", ".join(cell(c) for c in cl)
-    def diff_cell(dc): return "%s:%s" % (cell(dc[0]),dc[1])
-    def diff_cells(dcl): return '{%s}' % ', '.join(diff_cell(dc) for dc in dcl)
-    def eset(obj): return '%s%s' % (obj.name,eset_pos(obj.pos))
-    for step in solution:
-        mode=step[0]
-        if mode == "doc":
-            sq_dim = step[1].sq_dim
-        elif mode == "group":
-            print "Group: %s @ %s; reduction: %s in %s" % (
-                vals(step[1]), cells(step[2]), cells(step[3]), eset(step[4])
-                )
-        elif mode == "cross":
-            cr=step[1]
-            delta=step[2]
-            apply_list=step[3]
-            print "cross of",eset(cr.a_obj),"and",eset(cr.b_obj),"must have",delta,"=> reducing in cells",diff_cells(apply_list)
-        elif mode == "tuples":
-            print "C#[%s]: '%s' ; last on crossing" % (pos(step[1]),step[2])
-        else:
-            print "C#[%s]: '%s' ; last alternative in %s" % (pos(step[0]), step[1], step[2])
 
 class SudokuView(object):
     def __init__(self,parent,doc):
@@ -157,9 +126,8 @@ class SudokuView(object):
                     print "This is unsolvable combination. Reverted"
         def _solve(steps=None,ns=shared):
             print "Solving:",
-            ns["solution"]=None
-            res, s = self.doc.Solve(explain=True,steps=steps)
-            ns["solution"]=s
+            s = ns["solution"] = []
+            res = self.doc.Solve(solution=s,steps=steps)
             return res
         def _asn(var,val,ns=shared):
             ns[var] = val
@@ -168,22 +136,24 @@ class SudokuView(object):
             self.update(Sudoku(dim))
             self.notify_change()
         def _print_solution(ns):
-            PrintSolution(ns['solution'])
+            doc=self.doc
+            doc.PrintSolution(ns['solution'], sys.stdout)
             ns['solution']=[]
         def _solve_cross():
+            doc=self.doc
             lst=[]
-            res=doc.SolveCrossings(True,lst)
-            self.PrintSolution(lst)
+            res=doc.SolveCrossings(lst)
+            doc.PrintSolution(lst, sys.stdout)
             return res
         def _solve_groups():
             lst=[]
-            res=doc.SolveGroups(True,lst)
-            self.PrintSolution(lst)
+            res=doc.SolveGroups(lst)
+            doc.PrintSolution(lst, sys.stdout)
             return res
         def _solve_simple():
             lst=[]
-            res=doc.SolveSimple(True,lst)
-            self.PrintSolution(lst)
+            res=doc.SolveSimple(lst)
+            doc.PrintSolution(lst, sys.stdout)
             return res
         def _show_groups():
             for g in doc.grp.values():
@@ -201,9 +171,9 @@ class SudokuView(object):
                 if not _solve():
                     print 'Test failed: steps=%d' % steps
                     print 'Solution from generator'
-                    self.PrintSolution(path)
+                    doc.PrintSolution(path, sys.stdout)
                     break
-                self.PrintSolution(ns['solution'])
+                doc.PrintSolution(ns['solution'], sys.stdout)
             else:
                 print 'Test passed'
         def _verify_solver(ns, idx):
@@ -234,7 +204,7 @@ class SudokuView(object):
                 'clr': lambda ns: doc.Populate(),
                 't': lambda ns: self.Show(ns['maybe']),
                 'm': lambda ns: _asn('maybe',bool(eval(cmd[1])) if len(cmd) > 1 else ns['maybe']),
-                'h': lambda ns: self.PrintSolution(doc.Hint(int(cmd[1]) if len(cmd) > 1 else None)),
+                'h': lambda ns: doc.PrintSolution(doc.Hint(int(cmd[1],sys.stdout) if len(cmd) > 1 else None)),
                 'x': lambda ns: doc.Export(),
                 'i': lambda ns: doc.Populate(cmd[1]),
                 'gen': lambda ns: reduce(lambda x,y: 'reduced: '+str(x)+', remain:'+str(doc.total-x),(doc.GenHard(init = True, seed = cmd[1] if len(cmd) > 1 else None)[0],self.Show(ns['maybe']))),

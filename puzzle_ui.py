@@ -1,7 +1,6 @@
 #!/usr/bin/python
 from sudoku import Sudoku
-import wx
-from puzzle import PrintSolution
+import wx, sys
 
 class SudokuDocument(Sudoku):
     def __init__(self, dim=3):
@@ -204,12 +203,16 @@ class SudokuEditPanel(wx.Panel):
         if not self.sudoku.setDim(int(dim)):
             self.clear(True)
         for x in locked.split(','):
-            idx,val = x.split(':')
+            a = x.split(':')
+            if len(a) < 2: continue
+            idx,val = a
             item = self.grid[int(idx)]
             item.SetValue(val)
         self.update(fixed=True)
         for x in unlocked.split(','):
-            idx,val = x.split(':')
+            a= x.split(':')
+            if len(a) < 2: continue
+            idx,val = a
             item = self.grid[int(idx)]
             item.SetValue(val)
         self.update()
@@ -249,12 +252,13 @@ class SudokuEditPanel(wx.Panel):
         self.Parent.update()
 
 class ButtonPanel(wx.Panel):
-    def __init__(self, parent, pos, size):
+    def __init__(self, parent, pos, size, offset):
         wx.Panel.__init__(self, parent=parent, pos = pos, size=size)
         self.buttons=[]
+        self.offset = offset
     def add_button(self, label, evt_func):
         idx = len(self.buttons)
-        btn = wx.Button(self, label=label, pos=wx.Point(0,40+idx*30))
+        btn = wx.Button(self, label=label, pos=wx.Point(0, self.offset + idx*30))
         btn.Bind(wx.EVT_BUTTON, evt_func)
         self.buttons.append(btn)
         return btn
@@ -270,33 +274,49 @@ class MainFrame(wx.Frame):
         self.ID = self.GetId()
         self.sudoku = doc
         self.sudoku.open(self.update_doc)
-        self.file_name = 'sudoku_game.txt'
+        self.file_name = 'sudoku_game_%d.txt'
+
+        size = 25
 
         self.sudoku_edit = SudokuEditPanel(self, pos = wx.Point(0,0),
                                            sudoku_doc = self.sudoku,
-                                           cell_size = wx.Size(40,40))
+                                           cell_size = wx.Size(size,size))
         sz = self.sudoku_edit.GetSize()
-        self.buttons = ButtonPanel(self, pos = wx.Point(sz.x, 0), size=wx.Size(100,sz.y))
+        self.controls = ButtonPanel(self, pos = wx.Point(sz.x, 0), size=wx.Size(100,sz.y), offset=size)
 
-        self.buttons.add_button('New', self.on_btn_new)
-        self.buttons.add_button('Clear', self.on_btn_clear)
-        self.buttons.add_button('Generate', self.on_btn_generate)
-        self.buttons.add_button('Solve', self.on_btn_solve)
-        self.buttons.add_button('Validate', self.on_btn_validate)
-        self.buttons.add_button('Load', self.on_btn_load)
-        self.buttons.add_button('Save', self.on_btn_save)
+        self.controls.add_button('New', self.on_btn_new)
+        self.controls.add_button('Clear', self.on_btn_clear)
+        self.controls.add_button('Generate', self.on_btn_generate)
+        self.controls.add_button('Solve', self.on_btn_solve)
+        self.controls.add_button('Validate', self.on_btn_validate)
+        self.controls.add_button('Load', self.on_btn_load)
+        self.controls.add_button('Save', self.on_btn_save)
+
+        self.comboBox1 = wx.ComboBox(choices=['9x9', '16x16', '25x25'],
+              parent=self.controls,
+              pos=wx.Point(30, 250),
+              size=wx.Size(60, 50),
+              style=0, value='9x9')
+        self.comboBox1.Bind(wx.EVT_COMBOBOX, self.on_dim_combo)
+        wx.StaticText(
+              label='Size', parent=self.controls,
+              pos=wx.Point(0, 252), size=wx.Size(30, 12), style=0)
 
         self.SetClientSize(wx.Size(sz.x+100,sz.y))
 
-        self.load_game(self.file_name)
+        self.load_game(self.file_name % self.sudoku.doc.dim)
+
+    def on_dim_combo(self, event):
+        dim = int(self.comboBox1.Selection) + 3
+        self.sudoku.setDim(dim)
 
     def on_btn_load(self, event):
         self.Freeze()
-        self.load_game(self.file_name)
+        self.load_game(self.file_name % self.sudoku.doc.dim)
         self.Thaw()
 
     def on_btn_save(self, evt):
-        self.save_game(self.file_name)
+        self.save_game(self.file_name % self.sudoku.doc.dim)
 
     def load_game(self, name):
         try:
@@ -304,7 +324,7 @@ class MainFrame(wx.Frame):
             self.sudoku_edit.Import(f.read())
             f.close()
         except Exception, e:
-            print e
+            print 'load_game', e
             self.sudoku_edit.clear()
             return False
 
@@ -316,7 +336,7 @@ class MainFrame(wx.Frame):
             f.write(self.sudoku_edit.Export())
             f.close()
         except Exception, e:
-            print e
+            print 'save_game', e
             raise
             return False
 
@@ -340,9 +360,10 @@ class MainFrame(wx.Frame):
 
     def on_btn_solve(self, evt):
         print 'Solving'
-        res, solution = self.sudoku.doc.Solve(explain=True)
+        solution=[]
+        res = self.sudoku.doc.Solve(solution)
         self.update()
-        PrintSolution(solution)
+        self.sudoku.doc.PrintSolution(solution, sys.stdout)
         print res
 
     def on_btn_generate(self, evt):
@@ -360,10 +381,10 @@ class MainFrame(wx.Frame):
         self.Freeze()
         self.sudoku_edit.update_doc()
         size = self.sudoku_edit.GetSize()
-        self.buttons.SetPosition((size.x,0))
-        btn_size = self.buttons.GetSize()
-        self.buttons.SetSize((btn_size.x,size.y))
-        self.SetClientSize((size.x+btn_size.x,size.y))
+        self.controls.SetPosition((size.x,0))
+        ctl_size = self.controls.GetBestSize()
+        self.controls.SetSize((ctl_size.x,max(size.y,ctl_size.y)))
+        self.SetClientSize((size.x+ctl_size.x,max(size.y,ctl_size.y)))
         self.Thaw()
         print 'update doc in frame'
 

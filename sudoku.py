@@ -33,6 +33,42 @@ class Sudoku(object):
         self.Populate(seed)
         self.check = True
 
+    def PrintSolution(self, solution, stream):
+        sq_dim = self.sq_dim
+        def pos(x): return "y:%2d,x:%2d" % (x/sq_dim+1,x%sq_dim+1)
+        def eset_pos(x):
+            if len(x) == 1:
+                return "# %2d" % (int(x[0])+1)
+            else:
+                return "# <x:%d, y:%d>" % (x[0]+1,x[1]+1)
+        def eset(obj): return '%s%s' % (obj.name,eset_pos(obj.pos))
+        def esets(objs): return '{%s}' % ', '.join(eset(obj) for obj in objs)
+        def vals(x): return "[%s]" % ", ".join(v for v in x)
+        def cell(c): return "C#[%s]" % pos(c.pos)
+        def cells(cl): return "{%s}" % ", ".join(cell(c) for c in cl)
+        def diff_cell(dc): return "%s:%s" % (cell(dc[0]),dc[1])
+        def diff_cells(dcl): return '{%s}' % ', '.join(diff_cell(dc) for dc in dcl)
+        for step in solution:
+            mode=step[0]
+            if mode == "group":
+                print >>stream, "Group: %s @ %s; reduction: %s in %s" % (
+                    vals(step[1]), cells(step[2]), cells(step[3]), eset(step[4])
+                    )
+            elif mode == "cross":
+                cr=step[1]
+                delta=step[2]
+                apply_list=step[3]
+                print >>stream, "cross of",eset(cr.a_obj),"and",eset(cr.b_obj),"must have",delta,"=> reducing in cells",diff_cells(apply_list)
+            elif mode == "tuple1":
+                item = step[1]
+                val = step[2]
+                print >>stream, "%s: '%s' ; last on crossing of %s" % (cell(item), val, esets(item.bindings))
+            else:
+                item =step[0]
+                val = step[1]
+                e = step[2]
+                print >>stream, "%s: '%s' ; last in %s" % (cell(item), val, eset(e))
+
     def Export(self):
         return self.sep.join(str(x.val) if x.val != None else self.defval for x in self.data)
 
@@ -109,7 +145,8 @@ class Sudoku(object):
     def Hint(self,n=None):
         if n == None: n = 1
         sav=self.Export()
-        _, path=self.Solve(steps=n)
+        path=[]
+        _ =self.Solve(path, n)
         self.Populate(sav)
         return path
 
@@ -205,7 +242,8 @@ class Sudoku(object):
                 new_gen = self.Export()
                 self.Populate()
                 self.Populate(new_gen)
-                res, path = self.Solve()
+                path=[]
+                res= self.Solve(path)
                 if res:
                     good_path=path
             except Exception, e:
@@ -260,27 +298,30 @@ class Sudoku(object):
                 Done=True
         return self.Export().count(self.defval), good_path
 
-    def SolveSimple(self,explain,solution):
+    def SolveSimple(self,solution):
         res = False
         for pos,(e,val) in self.FindUniques():
-            self.data[pos].setval(val)
-            if explain:
-                solution.append((pos,val,e.name))
+            item=self.data[pos]
+            item.setval(val)
+            if solution != None:
+                solution.append((item,val,e))
             res = True
         for pos,val in self.FindTuples(1):
-            self.data[pos].setval(val[0])
-            if explain: solution.append(('tuples',pos,val[0]))
+            item=self.data[pos]
+            item.setval(val[0])
+            if solution != None:
+                solution.append(('tuple1',item,val[0]))
             res = True
         return res
 
-    def SolveGroups(self,explain,solution):
+    def SolveGroups(self,solution):
         res = False
         self.UpdateClosedGroups()
         for g in self.grp.values():
             modified=g.Apply()
             if modified:
                 res = True
-                if explain:
+                if solution != None:
                     step = ('group',
                             tuple(g.val), # values in the group
                             tuple(g.data),  # cells of the group
@@ -293,36 +334,33 @@ class Sudoku(object):
         self.UpdateClosedGroups()
         return self.grp
 
-    def SolveCrossings(self, explain, solution):
+    def SolveCrossings(self, solution):
         res = False
         for cr in self.crossings:
             cm = set.union(*[set(x.maybe) if x.maybe != None else set([]) for x in cr.data])
-            if cr.check_crossing(cm,cr.a_set,cr.a_obj,cr.b_set,cr.b_obj,explain,solution): res = True
-            if cr.check_crossing(cm,cr.b_set,cr.b_obj,cr.a_set,cr.a_obj,explain,solution): res = True
+            if cr.check_crossing(cm,cr.a_set,cr.a_obj,cr.b_set,cr.b_obj, solution): res = True
+            if cr.check_crossing(cm,cr.b_set,cr.b_obj,cr.a_set,cr.a_obj, solution): res = True
 
         return res
 
-    def Solve(self, explain=False, steps=None):
+    def Solve(self, solution=None, steps=None):
         self.check=True
         if not self.sync:
             self.SetSync(True)
         complete = True
         if steps != None:
-            explain=True
             complete = False
         res = True
-        solution=[]
-        solution.append(('doc',self))
         while res:
-            if(steps != None and len(solution) > steps):
-                solution = solution[:steps+1]
+            if(steps != None and solution != None and len(solution) >= steps):
+                solution = solution[0:steps]
                 res = True
                 break
-            res = self.SolveSimple(explain,solution)
+            res = self.SolveSimple(solution)
             if res: continue
-            res = self.SolveCrossings(explain,solution)
+            res = self.SolveCrossings(solution)
             if res: continue
-            res = self.SolveGroups(explain,solution)
+            res = self.SolveGroups(solution)
 
         if complete:
             todo = filter(lambda x: not x.HasVal(), self.data)
@@ -331,7 +369,7 @@ class Sudoku(object):
             else:
                 res = True
 
-        return res, solution
+        return res
 
     def FindTuples(self,size=1):
         tuples=[]
@@ -410,21 +448,21 @@ class Crossing(object):
         self.b_set = set(b.data) - set(cross)
         self.a_obj = a
         self.b_obj = b
-    def check_crossing(self,cm,a_set,a_obj,b_set,b_obj,explain,solution):
+    def check_crossing(self,cm, a_set, a_obj, b_set, b_obj, solution):
         applied = []
         delta = cm - set.union(*[set(x.maybe) if x.maybe != None else set([]) for x in a_set])
         if len(delta):
             for x in b_set:
                 if not x.maybe: continue
                 old = x.maybe
-                l=len(old)
-                new = old - delta
-                l-=len(new)
+                l = len(old)
+                new = x.maybe - delta
+                l -= len(new)
                 if l:
                     x.maybe = new
                     diff = old - new
                     applied.append((x, diff))
-            if len(applied) > 0 and explain:
+            if len(applied) > 0 and solution != None:
                 solution.append(('cross', self, delta, applied))
         return len(applied) > 0
     def __repr__(self):
