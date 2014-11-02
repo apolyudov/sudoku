@@ -40,21 +40,26 @@ def PrintSolution(solution):
         if len(x) == 1:
             return "# %2d" % (int(x[0])+1)
         else:
-            return "# <y:%d, x:%d>" % (x[0]+1,x[1]+1)
+            return "# <x:%d, y:%d>" % (x[0]+1,x[1]+1)
     def vals(x): return "[%s]" % ", ".join(v for v in x)
-    def cells(c): return "{C#[%s]}" % "], C#[".join(pos(x) for x in c)
+    def cell(c): return "C#[%s]" % pos(c.pos)
+    def cells(cl): return "{%s}" % ", ".join(cell(c) for c in cl)
+    def diff_cell(dc): return "%s:%s" % (cell(dc[0]),dc[1])
+    def diff_cells(dcl): return '{%s}' % ', '.join(diff_cell(dc) for dc in dcl)
+    def eset(obj): return '%s%s' % (obj.name,eset_pos(obj.pos))
     for step in solution:
         mode=step[0]
         if mode == "doc":
             sq_dim = step[1].sq_dim
         elif mode == "group":
-            print "Group: %s @ %s; reduction: %s in %s %s" % (
-                vals(step[1]), cells(step[2]), cells(step[3]), step[4], eset_pos(step[5]))
+            print "Group: %s @ %s; reduction: %s in %s" % (
+                vals(step[1]), cells(step[2]), cells(step[3]), eset(step[4])
+                )
         elif mode == "cross":
-            delta=step[1]
-            cr=step[2]
-            e=step[3]
-            print "cross: reducing:",delta,"on cross of",cr.a_obj.name,cr.a_obj.pos,cr.b_obj.name,cr.b_obj.pos,"reduction at",e.name,e.pos
+            cr=step[1]
+            delta=step[2]
+            apply_list=step[3]
+            print "cross of",eset(cr.a_obj),"and",eset(cr.b_obj),"must have",delta,"=> reducing in cells",diff_cells(apply_list)
         elif mode == "tuples":
             print "C#[%s]: '%s' ; last on crossing" % (pos(step[1]),step[2])
         else:

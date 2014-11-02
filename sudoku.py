@@ -43,27 +43,19 @@ class Sudoku(object):
             idx = self.alfabet.find(e.val) + 1 if e.HasVal() else 0
             res *= order
             res += idx
-        res *= 100
-        res += self.dim
         return '%X' % res
 
     def ImportHex(self, s):
         res = int(s, 16)
-        dim = res % 100
-        res -= dim
-        res /= 100
-        seed = ''
-        order = dim * dim + 1
-        if self.all_alfa.get(dim,None) == None:
-            raise ValueError('Input cannot be decoded: %s' % s)
-        self.alfabet = self.all_alfa[dim]
+        seed = bytearray(self.total)
+        order = self.sw_dim + 1
 
-        for i in xrange(pow(dim,4)):
+        for i in xrange(self.total):
             idx = res % order
-            seed += (self.alfabet[idx-1] if idx > 0 else '.')
+            seed[i] = (self.alfabet[idx-1] if idx > 0 else self.defval)
             res -= idx
             res /= order
-        self.Populate(seed)
+        self.Populate(str(seed))
 
     def InitRand(self):
         from random import Random
@@ -290,11 +282,11 @@ class Sudoku(object):
                 res = True
                 if explain:
                     step = ('group',
-                            tuple(g.data)[0].alt_tuple(), # values in the group
-                            tuple(x.pos for x in g.data),  # cell numbers of the group
-                            tuple(m.pos for m in modified),# modified cell list, number of remaining alternatives
-                            g.eset.name,g.eset.pos)
-                    solution.append(step)       # dataset position and name (row, col, sq)
+                            tuple(g.val), # values in the group
+                            tuple(g.data),  # cells of the group
+                            tuple(modified),# modified cell list
+                            g.eset) # eset to which the group belongs
+                    solution.append(step)
         return res
 
     def Groups(self):
@@ -419,19 +411,22 @@ class Crossing(object):
         self.a_obj = a
         self.b_obj = b
     def check_crossing(self,cm,a_set,a_obj,b_set,b_obj,explain,solution):
-        applied = False
+        applied = []
         delta = cm - set.union(*[set(x.maybe) if x.maybe != None else set([]) for x in a_set])
         if len(delta):
             for x in b_set:
                 if not x.maybe: continue
-                l=len(x.maybe)
-                x.maybe -= delta
-                l-=len(x.maybe)
+                old = x.maybe
+                l=len(old)
+                new = old - delta
+                l-=len(new)
                 if l:
-                    applied = True
-            if applied and explain:
-                solution.append(('cross',delta,self,b_obj))
-        return applied
+                    x.maybe = new
+                    diff = old - new
+                    applied.append((x, diff))
+            if len(applied) > 0 and explain:
+                solution.append(('cross', self, delta, applied))
+        return len(applied) > 0
     def __repr__(self):
         return 'Crossing: [%s]' % (self.data,)
 

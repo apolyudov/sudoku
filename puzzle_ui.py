@@ -10,13 +10,16 @@ class SudokuDocument(Sudoku):
 
     def ImportHex(self, text):
         try:
-            val = int(text,16) % 100
+            val = int(text[-2:])
         except:
             return False
         if not self.setDim(val):
             return False
-        self._doc.ImportHex(text)
+        self._doc.ImportHex(text[0:-2])
         return True
+
+    def ExportHex(self):
+        return '%s%02d' % (self._doc.ExportHex(), self._doc.dim)
 
     def open(self, change_notifier):
         t = (change_notifier, )
@@ -218,8 +221,12 @@ class SudokuEditPanel(wx.Panel):
         )
 
     def on_mouse_dbl_left(self, event):
-        print 'panel_dblclick', event.x, event.y
-        event.Skip()
+        for g in self.grid:
+            rect = wx.Rect()
+            rect.SetPosition(g.GetPosition())
+            rect.SetSize(g.GetSize())
+            if rect.ContainsXY(event.x,event.y):
+                g.update(False)
 
     def mark_invalid(self, lst):
         for item in self.grid:
@@ -241,7 +248,6 @@ class SudokuEditPanel(wx.Panel):
     def on_item_text(self, child, event):
         self.Parent.update()
 
-
 class ButtonPanel(wx.Panel):
     def __init__(self, parent, pos, size):
         wx.Panel.__init__(self, parent=parent, pos = pos, size=size)
@@ -258,7 +264,7 @@ class MainFrame(wx.Frame):
         wx.Frame.__init__(
             self,
             parent=None,
-            style=wx.DEFAULT_FRAME_STYLE,
+            style=wx.SYSTEM_MENU | wx.CAPTION | wx.CLOSE_BOX,
             title='Sudoku')
 
         self.ID = self.GetId()
@@ -272,7 +278,7 @@ class MainFrame(wx.Frame):
         sz = self.sudoku_edit.GetSize()
         self.buttons = ButtonPanel(self, pos = wx.Point(sz.x, 0), size=wx.Size(100,sz.y))
 
-        self.btnLock = self.buttons.add_button('', self.on_btn_lock_unlock)
+        self.buttons.add_button('New', self.on_btn_new)
         self.buttons.add_button('Clear', self.on_btn_clear)
         self.buttons.add_button('Generate', self.on_btn_generate)
         self.buttons.add_button('Solve', self.on_btn_solve)
@@ -280,15 +286,14 @@ class MainFrame(wx.Frame):
         self.buttons.add_button('Load', self.on_btn_load)
         self.buttons.add_button('Save', self.on_btn_save)
 
-        self.export = wx.TextCtrl(parent=self, pos=wx.Point(0,sz.y),size=wx.Size(sz.x+100,100))
-        self.export.Bind(wx.EVT_TEXT, self.on_text_export)
-        self.SetClientSize(wx.Size(sz.x+100,sz.y+100))
-        self.SetLockedState(False)
+        self.SetClientSize(wx.Size(sz.x+100,sz.y))
 
         self.load_game(self.file_name)
 
     def on_btn_load(self, event):
+        self.Freeze()
         self.load_game(self.file_name)
+        self.Thaw()
 
     def on_btn_save(self, evt):
         self.save_game(self.file_name)
@@ -317,27 +322,17 @@ class MainFrame(wx.Frame):
 
         return True
 
-    def SetLockedState(self, locked):
-        self.locked = locked
-        if self.locked:
-            self.btnLock.SetLabel('Unlock')
-        else:
-            self.btnLock.SetLabel('Lock')
-        self.update(self.locked)
-
-    def on_text_export(self, evt):
-        self.sudoku.ImportHex(self.export.GetValue())
-        self.SetLockedState(True)
-        self.update()
-
     def on_btn_validate(self, evt):
         invalid_list = self.sudoku.doc.Validate()
         self.sudoku_edit.mark_invalid(invalid_list)
         self.update()
 
-    def on_btn_lock_unlock(self, evt):
-        self.SetLockedState(not self.locked)
+    def on_btn_new(self, evt):
+        self.Freeze()
+        self.update(False)
+        self.sudoku_edit.clear()
         self.update()
+        self.Thaw()
 
     def on_btn_clear(self, evt):
         self.sudoku_edit.clear()
@@ -351,17 +346,12 @@ class MainFrame(wx.Frame):
         print res
 
     def on_btn_generate(self, evt):
-        print 'Generating'
         doc = self.sudoku.doc
-        seed = doc.Export() if not self.locked else None
-        doc.GenHard(init=True, seed=seed, full=True)
-        self.SetLockedState(True)
-        self.update()
-        print doc.Export()
+        doc.GenHard(init=True)
+        self.update(True)
 
     def update(self, fixed=None):
         self.sudoku_edit.update(fixed)
-        self.export.ChangeValue(self.sudoku.doc.ExportHex())
 
     def save(self):
         pass
@@ -370,13 +360,10 @@ class MainFrame(wx.Frame):
         self.Freeze()
         self.sudoku_edit.update_doc()
         size = self.sudoku_edit.GetSize()
-        self.export.SetPosition((0,size.y))
         self.buttons.SetPosition((size.x,0))
         btn_size = self.buttons.GetSize()
-        exp_size = self.export.GetSize()
         self.buttons.SetSize((btn_size.x,size.y))
-        self.export.SetSize((size.x+btn_size.x,exp_size.y))
-        self.SetClientSize((size.x+btn_size.x,size.y+exp_size.y))
+        self.SetClientSize((size.x+btn_size.x,size.y))
         self.Thaw()
         print 'update doc in frame'
 
