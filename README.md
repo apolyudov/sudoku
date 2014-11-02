@@ -75,15 +75,18 @@ See 5 for more detailed description of console mode
 4 GUI notes
 
 It is very simple and (I hope) self-explanatory, but anyway:
-there is an <EDIT> field for the puzzle, and set of buttons that control the
+there is an EDIT field for the puzzle, and set of buttons that control the
 state of presentation and solver.
-<EDIT> consists of cells, which can accept only one character (1-9) for 3x3 sudoku,
-(0-F) for 4x4 sudoku, etc.
+EDIT field consists of multiple cells, which can accept only one character each.
+(1-9),for 3x3 sudoku,
+(0-9,A-F) for 4x4 sudoku,
+(A-Y) for 5x5 sudoku
+
 Typically the 'puzzle' part (the initial set of populated cells) is "locked", so
 that you can't edit them by  mistake. BUT: doing double-click on locked cell makes
 it unlocked. double-click on unlocked cell, yeah, makes it locked.
 All the possible alternatives allowed by the rules are shown as a tooltip.
-Some obsious errors ar emarked in RED or YELLOW, and tooltip changes to explain
+Some obsious errors are marked in RED or YELLOW, and tooltip changes to explain
 what happened.
 
 buttons:
@@ -98,7 +101,7 @@ how long does it take to generate 5x5 puzzle.
   generated results are immediately locked.
   generated puzzle is supposed to be solvable, and is supposed to have unique solution :)
 
-- Solve: populates <EDIT> field with whatever solution it finds, and generates report
+- Solve: populates EDIT field with whatever solution it finds, and generates report
   which is supposed to explain to humans how was the soulution found
   in case of incorrect puzzles, it will not do a brute force, but give the partial solution.
   The reason why I don't give brute force option in GUI is: I can't generate explanation
@@ -110,7 +113,7 @@ how long does it take to generate 5x5 puzzle.
  complete solution will be printed in a separate window in a what I consider human-readable form.
  Use it as a cheatsheet if necessary.
 
-- Validate: makes sure that all the values in the <EDIT> field are allowed by the rules.
+- Validate: makes sure that all the values in the EDIT field are allowed by the rules.
 
 - Load: reads the game state from predefined file.
 
