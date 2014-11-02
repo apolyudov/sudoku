@@ -43,6 +43,7 @@ But this is not a puzzle yet. It is a completely solved puzzle.
 Now, we have to start the elimination process.
 And this process must be rule-based to ensure that it is solvable by humans.
 So I written the rule-based solver also.
+
 Both solvers and generator, as well as some debugging code is what I call Sudoku Solver core.
 Minimalistic Sudoku console is what I used for debugging and finally solving, both interactively and automatically.
 Finally, I added some very simple GUI to make it look nice, and also learn pythonic
@@ -55,6 +56,7 @@ simply make sure you have all the .py files in the same directory, and
 python 2.7 is installed with standard packages.
 
 3 How to use
+
 there is more than one way to (skin the cat) run this toy.
 
 Run 'main.py' to get GUI (requires python 'wx' extension to be installed;
@@ -70,8 +72,8 @@ or
 run 'main.py -c' to get console version of it
 See 5 for more detailed description of console mode
 
-
 4 GUI notes
+
 It is very simple and (I hope) self-explanatory, but anyway:
 there is an <EDIT> field for the puzzle, and set of buttons that control the
 state of presentation and solver.
@@ -85,24 +87,37 @@ Some obsious errors ar emarked in RED or YELLOW, and tooltip changes to explain
 what happened.
 
 buttons:
+
 - New: erases the field (both locked and unlocked cells)
+
 - Clear: erases all the unlocked cells
+
 - Generate: takes 1-3 seconds to generate 3x3 puzzle on my machine.
 Generating 4x4 puzzles takes a minute or two. I did not have paitience to see
 how long does it take to generate 5x5 puzzle.
   generated results are immediately locked.
   generated puzzle is supposed to be solvable, and is supposed to have unique solution :)
+
 - Solve: populates <EDIT> field with whatever solution it finds, and generates report
   which is supposed to explain to humans how was the soulution found
   in case of incorrect puzzles, it will not do a brute force, but give the partial solution.
   The reason why I don't give brute force option in GUI is: I can't generate explanation
   log for brute-force solver, and without explanation this is not very useful.
   Whoever cares about brute-force solver, it is available in console mode :)
+
+ GUI version does not have a special command to give hints.
+ Instead, whoat you could do is: click on 'Solve', and then click 'Clear'.
+ complete solution will be printed in a separate window in a what I consider human-readable form.
+ Use it as a cheatsheet if necessary.
+
 - Validate: makes sure that all the values in the <EDIT> field are allowed by the rules.
+
 - Load: reads the game state from predefined file.
+
 - Save: writes the game state to predefined file.
 
 5 Console commands
+
 text console takes several commands, that let you generate and solve sudoku puzzles
 
 - load predefined game #0: v 0
@@ -115,7 +130,7 @@ text console takes several commands, that let you generate and solve sudoku puzz
 
 - print the step-by-step explanation: p
 
--give a hint (next step): h
+- give a hint (next step): h
 
 - generate new game: gen
 
@@ -140,6 +155,9 @@ rule-based solver only solves puzzle with a single solution, and only if the sol
 is logically derivable (does not currently do any guesswork)
 
 The plan is:
+
 - improve rule-based solver to cover so-called impossible (guesswork) cases with a single solution
+
 - to write rule-based generator, with ability to generate games of given complexity
+
 - more?
