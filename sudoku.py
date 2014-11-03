@@ -186,9 +186,10 @@ class Sudoku(object):
             self.SetSync(False)
             res = True
             i=0
-            imin=0
-            imax=0
-            show=0
+            if dbg:
+                imin=0
+                imax=0
+                show=0
             for x in self.data: x.fixed = x.HasVal()
             while i < self.total:
                 x = self.data[i]
@@ -197,16 +198,17 @@ class Sudoku(object):
                 if x.fixed:
                     i=i+1
                     continue
-                if i > imax:
-                    imax=i
-                    imin=i
-                    show=1
-                if i < imin:
-                    imin=i
-                    show=1
-                if show:
-                    print 'imax=%d imin=%d' % (imax,imin)
-                    show=0
+                if dbg:
+                    if i > imax:
+                        imax=i
+                        imin=i
+                        show=1
+                    if i < imin:
+                        imin=i
+                        show=1
+                    if show:
+                        print 'imax=%d imin=%d' % (imax,imin)
+                        show=0
                 x.update()
                 t=tuple(x.maybe-x.failed)
                 if len(t) == 0:
@@ -245,7 +247,7 @@ class Sudoku(object):
     # Generating with a "SolveHard",
     # reducing randomly,
     # verifying with "Solve"
-    def GenHard(self,init=True,seed=None, full=False):
+    def GenHard(self,init=True,seed=None, full=False, dbg=False):
         def can_remove(pos):
             gen=self.Export()
             new_gen = gen
@@ -258,10 +260,12 @@ class Sudoku(object):
                 self.Populate()
                 self.Populate(new_gen)
                 path=[]
-                print 'solving:', new_gen 
+                if dbg:
+                    print 'solving:', new_gen 
                 res= self.Solve(path)
-                print 'done:', res
-                self.PrintSolution(path, sys.stdout)
+                if dbg:
+                    print 'done:', res
+                    self.PrintSolution(path, sys.stdout)
                 if res:
                     good_path=path
             except Exception, e:
@@ -294,13 +298,16 @@ class Sudoku(object):
                 # multiple solutions or invalid puzzle
                 if self.IsValid():
                     self.Populate(seed)
-                    print 'populating puzzle' 
+                    if dbg:
+                        print 'populating puzzle' 
                     self.SolveHard()
-                    print 'populating puzzle finished'
+                    if dbg:
+                        print 'populating puzzle finished'
                 else:
                     print 'puzzle is invalid; TODO: should reduce it to make it valid'
                     return self.Export(), []
-                print self.Export() 
+                if dbg:
+                    print self.Export()
 
         stable=0
         good_path = []
