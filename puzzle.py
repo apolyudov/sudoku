@@ -1,5 +1,6 @@
 import sys
 from sudoku import Sudoku, Row, Col
+from sudoku_io import stream_file_io, raw_read_stream, raw_write_stream, doc_read_stream, doc_write_stream
 
 class RowView(object):
     def __init__(self,parent,row):
@@ -190,7 +191,52 @@ class SudokuView(object):
             self.Show(ns['maybe'])
             print 'New Game: dimension: %d; complexity: %s; total %d populated cells of %d' % (
                    game_dim, game_complexity, len(filter(lambda c: c != '.', game_data)), len(game_data))
-            
+
+        def sudoku_file_name(sfx='_raw'):
+            return 'sudoku_game%s_%d.txt' % (sfx, doc.dim)
+        def _export_game(arg):
+            doc = self.doc
+            saved = doc.Export()
+            if arg == None:
+                print saved
+            elif arg[0] == '@':
+                fn = sudoku_file_name()
+                print 'saving to file: "%s"' % fn
+                res_list = stream_file_io(fn, 'w', raw_write_stream, doc.dim, doc.sq_dim, doc.Export())
+                res = res_list[0]
+                if res == False:
+                    print 'failed to save %s: %s' % (fn, msg)
+                else:
+                    print 'OK'
+
+        def _import_game(arg):
+            doc = self.doc
+            if arg != None and arg[0] != '@':
+                doc.Populate(arg)
+            if arg == None or arg[0] == '@':
+                fn = sudoku_file_name()
+                res_list = stream_file_io(fn, 'r', raw_read_stream)
+                res = res_list[0]
+                if res == True:
+                    seed = res_list[3]
+                    doc.Populate(seed)
+                    print 'OK'
+                else:
+                    msg = res_list[1]
+                    print 'Failed to load %s: %s' % (fn, msg) 
+
+        def _export_game_doc():
+            res_list = stream_file_io(sudoku_file_name(''),'w', doc_write_stream, doc)
+            res = res_list[0]
+            if res == False:
+                print res_list[1]
+
+        def _import_game_doc():
+            res_list = stream_file_io(sudoku_file_name(''),'r', doc_read_stream, doc)
+            res = res_list[0]
+            if res == False:
+                print res_list[1]
+
         while(not shared['quit']):
             cmd=read().split()
             if len(cmd) == 0: continue
@@ -205,8 +251,10 @@ class SudokuView(object):
                 't': lambda ns: self.Show(ns['maybe']),
                 'm': lambda ns: _asn('maybe',bool(eval(cmd[1])) if len(cmd) > 1 else ns['maybe']),
                 'h': lambda ns: doc.PrintSolution(doc.Hint(int(cmd[1],sys.stdout) if len(cmd) > 1 else None)),
-                'x': lambda ns: doc.Export(),
-                'i': lambda ns: doc.Populate(cmd[1]),
+                'x': lambda ns: _export_game(cmd[1] if len(cmd) > 1 else None),
+                'xd': lambda ns: _export_game_doc(),
+                'i': lambda ns: _import_game(cmd[1] if len(cmd) > 1 else None),
+                'id': lambda ns: _import_game_doc(),
                 'gen': lambda ns: reduce(lambda x,y: 'reduced: '+str(x)+', remain:'+str(doc.total-x),(doc.GenHard(init = True, seed = cmd[1] if len(cmd) > 1 else None)[0],self.Show(ns['maybe']))),
                 'grp': lambda ns: _show_groups(),
                 'p': lambda ns: _print_solution(ns),

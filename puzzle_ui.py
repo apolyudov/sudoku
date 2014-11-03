@@ -1,48 +1,6 @@
 #!/usr/bin/python
-from sudoku import Sudoku
+from sudoku_io import SudokuDocument, doc_read_stream, doc_write_stream, stream_file_io
 import wx, sys
-
-class SudokuDocument(Sudoku):
-    def __init__(self, dim=3):
-        self._notifiers = set([])
-        self._doc = Sudoku(dim=dim)
-
-    def ImportHex(self, text):
-        try:
-            val = int(text[-2:])
-        except:
-            return False
-        if not self.setDim(val):
-            return False
-        self._doc.ImportHex(text[0:-2])
-        return True
-
-    def ExportHex(self):
-        return '%s%02d' % (self._doc.ExportHex(), self._doc.dim)
-
-    def open(self, change_notifier):
-        t = (change_notifier, )
-        self._notifiers.add(t)
-        return t
-
-    def close(self, t):
-        self._notifiers.remove(t)
-
-    def setDim(self, dim):
-        if dim != self._doc.dim:
-            self._update(Sudoku(dim=dim))
-            return True
-        return False
-
-    def _update(self, doc):
-        self._doc = doc
-        for t in self._notifiers:
-            notifier = t[0]
-            notifier()
-
-    @property
-    def doc(self):
-        return self._doc
 
 class SudokuEditItem(wx.TextCtrl):
     [E_OK,E_IMPOSSIBLE,E_NO_SOLUTION] = xrange(3)
@@ -75,22 +33,17 @@ class SudokuEditItem(wx.TextCtrl):
             self.fixed = False
             self.error = self.E_OK
 
-    def update(self, fixed = None):
-        if fixed == None:
-            fixed = self.fixed
-        if fixed == True and self.data.HasVal():
-            self.Enable(False)
-            self.fixed = True
-        else:
-            self.Enable(True)
-            if fixed != None:
-                self.fixed = False
+    def update(self):
+        # propagates changes from document to view
+        fixed = self.data.fixed
+        self.Enable(not fixed)
+        self.fixed = fixed
 
         if self.data.HasVal():
-            self.SetValue(self.data.val)
+            self.ChangeValue(self.data.val)
             self.SetToolTipString('')
         else:
-            self.SetValue('')
+            self.ChangeValue('')
             maybe = list(self.data.maybe)
             maybe.sort()
             tip = ','.join(str(x) for x in maybe)
@@ -105,9 +58,17 @@ class SudokuEditItem(wx.TextCtrl):
                 self.BackgroundColour = (255,255,255,255)
         self.Refresh()
 
+    def load(self, val):
+        self.data.setval(val)
+        if (self.data.HasVal()):
+            self.ChangeValue(self.data.val)
+        else:
+            self.ChangeValue('')
+
     def on_mouse_dbl_left(self, event):
-        self.update(not self.fixed)
-        event.Skip()
+        if self.data.hasVal():
+            self.data.fixed = True
+            self.update()
 
     def on_text(self, event):
         new_val = self.GetValue()
@@ -123,12 +84,8 @@ class SudokuEditItem(wx.TextCtrl):
             msg = 'Can\'t set the value: %s: %s' % (new_val, err)
             # rules do not prohibit this value for this cell,
             # but some other cell(s) will become invalid
-            if new_val != '?':
-                self.error = self.E_NO_SOLUTION
-                self.SetToolTipString(msg)
-            else:
-                self.error = self.E_OK
-                self.SetToolTipString(str(self.data))
+            self.error = self.E_NO_SOLUTION
+            self.SetToolTipString(msg)
         finally:
             result = self.data.val
             if result != new_val:
@@ -198,31 +155,6 @@ class SudokuEditPanel(wx.Panel):
         self.destroy()
         self.setup()
 
-    def Import(self, text):
-        dim,locked,unlocked=text.split(';')
-        if not self.sudoku.setDim(int(dim)):
-            self.clear(True)
-        for x in locked.split(','):
-            a = x.split(':')
-            if len(a) < 2: continue
-            idx,val = a
-            item = self.grid[int(idx)]
-            item.SetValue(val)
-        self.update(fixed=True)
-        for x in unlocked.split(','):
-            a= x.split(':')
-            if len(a) < 2: continue
-            idx,val = a
-            item = self.grid[int(idx)]
-            item.SetValue(val)
-        self.update()
-    def Export(self):
-        return '%d;%s;%s' % (
-            self.sudoku.doc.dim,
-            ','.join('%d:%s' % (x.data.pos, x.data.val) for x in filter(lambda g: g.fixed, self.grid)),
-            ','.join('%d:%s' % (x.data.pos, x.data.val) for x in filter(lambda g: not g.fixed and g.data.HasVal(), self.grid))
-        )
-
     def on_mouse_dbl_left(self, event):
         for g in self.grid:
             rect = wx.Rect()
@@ -241,12 +173,11 @@ class SudokuEditPanel(wx.Panel):
         self.update()
 
     def clear(self, force=None):
-        for e in self.grid:
-            e.clear(force)
+        self.sudoku.clear(force)
 
-    def update(self, fixed = None):
+    def update(self):
         for e in self.grid:
-            e.update(fixed)
+            e.update()
 
     def on_item_text(self, child, event):
         self.Parent.update()
@@ -318,29 +249,25 @@ class MainFrame(wx.Frame):
     def on_btn_save(self, evt):
         self.save_game(self.file_name % self.sudoku.doc.dim)
 
-    def load_game(self, name):
-        try:
-            f= open(name,'r')
-            self.sudoku_edit.Import(f.read())
-            f.close()
-        except Exception, e:
-            print 'load_game', e
-            self.sudoku_edit.clear()
-            return False
+    def load_game(self, fname, quiet=False):
+        res_list = stream_file_io(fname, 'r', doc_read_stream, self.sudoku)
+        res = res_list[0]
+        if not res:
+            if not quiet:
+                # TODO: show message box here
+                print res_list[1]
+        else:
+            self.update()
+        return res
 
-        return True
-
-    def save_game(self, name):
-        try:
-            f= open(name,'w')
-            f.write(self.sudoku_edit.Export())
-            f.close()
-        except Exception, e:
-            print 'save_game', e
-            raise
-            return False
-
-        return True
+    def save_game(self, fname, quiet=False):
+        res_list = stream_file_io(fname, 'w', doc_write_stream, self.sudoku)
+        res = res_list[0]
+        if not res:
+            if not quiet:
+                # TODO: show message box here
+                print res_list[1]
+        return res
 
     def on_btn_validate(self, evt):
         invalid_list = self.sudoku.doc.Validate()
@@ -349,13 +276,12 @@ class MainFrame(wx.Frame):
 
     def on_btn_new(self, evt):
         self.Freeze()
-        self.update(False)
-        self.sudoku_edit.clear()
+        self.sudoku.clear(force=True)
         self.update()
         self.Thaw()
 
     def on_btn_clear(self, evt):
-        self.sudoku_edit.clear()
+        self.sudoku.clear()
         self.update()
 
     def on_btn_solve(self, evt):
@@ -369,10 +295,10 @@ class MainFrame(wx.Frame):
     def on_btn_generate(self, evt):
         doc = self.sudoku.doc
         doc.GenHard(init=True)
-        self.update(True)
+        self.update()
 
-    def update(self, fixed=None):
-        self.sudoku_edit.update(fixed)
+    def update(self):
+        self.sudoku_edit.update()
 
     def save(self):
         pass
