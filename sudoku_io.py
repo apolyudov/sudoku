@@ -28,6 +28,16 @@ class SudokuDocument(object):
     def close(self, t):
         self._notifiers.remove(t)
 
+    def items(self):
+        populated = 0
+        fixed = 0
+        for e in self._doc.data:
+            if e.HasVal():
+                populated+=1
+                if e.fixed:
+                    fixed += 1
+        return (fixed, populated)
+
     def setDim(self, dim):
         if dim != self._doc.dim:
             self._update(Sudoku(dim=dim))

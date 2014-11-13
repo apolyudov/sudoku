@@ -223,22 +223,20 @@ class MainFrame(wx.Frame):
         self.controls.add_button('Load', self.on_btn_load)
         self.controls.add_button('Save', self.on_btn_save)
 
-        self.comboBox1 = wx.ComboBox(choices=['9x9', '16x16', '25x25'],
+        self.cmbSelDim = wx.ComboBox(choices=['9x9', '16x16', '25x25'],
               parent=self.controls,
               pos=wx.Point(30, 250),
-              size=wx.Size(60, 50),
+              size=wx.Size(80, 30),
               style=0, value='9x9')
-        self.comboBox1.Bind(wx.EVT_COMBOBOX, self.on_dim_combo)
+        self.cmbSelDim.Bind(wx.EVT_COMBOBOX, self.on_dim_combo)
         wx.StaticText(
               label='Size', parent=self.controls,
               pos=wx.Point(0, 252), size=wx.Size(30, 12), style=0)
 
-        self.SetClientSize(wx.Size(sz.x+100,sz.y))
-
-        self.load_game(self.file_name % self.sudoku.doc.dim)
+        self.update_doc()
 
     def on_dim_combo(self, event):
-        dim = int(self.comboBox1.Selection) + 3
+        dim = int(self.cmbSelDim.Selection) + 3
         self.sudoku.setDim(dim)
 
     def on_btn_load(self, event):
@@ -299,11 +297,23 @@ class MainFrame(wx.Frame):
 
     def update(self):
         self.sudoku_edit.update()
+        self.update_title()
 
     def save(self):
         pass
 
+    def update_title(self):
+        try:
+            _, populated = self.sudoku.items()
+            kind  = self.cmbSelDim.GetValue()
+            title = 'Sudoku: %s [%d items]' % (kind, populated)
+        except Exception, e:
+            title = 'Sudoku'
+            print e
+        self.SetTitle(title)
+
     def update_doc(self):
+        load = False
         self.Freeze()
         self.sudoku_edit.update_doc()
         size = self.sudoku_edit.GetSize()
@@ -311,8 +321,9 @@ class MainFrame(wx.Frame):
         ctl_size = self.controls.GetBestSize()
         self.controls.SetSize((ctl_size.x,max(size.y,ctl_size.y)))
         self.SetClientSize((size.x+ctl_size.x,max(size.y,ctl_size.y)))
+        self.load_game(self.file_name % self.sudoku.doc.dim)
+        self.update()
         self.Thaw()
-        print 'update doc in frame'
 
 def main_GUI(argv):
     app = wx.App(redirect=True)
