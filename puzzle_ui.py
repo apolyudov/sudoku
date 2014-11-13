@@ -26,6 +26,7 @@ class SudokuEditItem(wx.TextCtrl):
         self.Bind(wx.EVT_LEFT_DCLICK, self.on_mouse_dbl_left)
         self.fixed = False
         self.error = self.E_OK
+        self.tip = None
 
     def clear(self, force=False):
         if not self.fixed or force:
@@ -41,21 +42,26 @@ class SudokuEditItem(wx.TextCtrl):
 
         if self.data.HasVal():
             self.ChangeValue(self.data.val)
-            self.SetToolTipString('')
-        else:
+            self.tip = None
+        elif self.error == self.E_OK:
             self.ChangeValue('')
             maybe = list(self.data.maybe)
             maybe.sort()
-            tip = ','.join(str(x) for x in maybe)
-            self.SetToolTipString(tip)
+            self.tip = ','.join(str(x) for x in maybe)
 
         if not self.fixed:
             if self.error == self.E_IMPOSSIBLE:
                 self.BackgroundColour = (255,0,0,0)
+                self.tip = 'Duplicate value'
             elif self.error == self.E_NO_SOLUTION:
                 self.BackgroundColour = (255,255,0,0)
             else:
                 self.BackgroundColour = (255,255,255,255)
+
+        if self.tip != None:
+            self.SetToolTipString(self.tip)
+        else:
+            self.SetToolTip(None)
         self.Refresh()
 
     def load(self, val):
@@ -66,9 +72,12 @@ class SudokuEditItem(wx.TextCtrl):
             self.ChangeValue('')
 
     def on_mouse_dbl_left(self, event):
-        if self.data.hasVal():
-            self.data.fixed = True
-            self.update()
+        if not self.data.fixed:
+            if self.data.HasVal():
+                self.data.fixed = True
+        else:
+            self.data.fixed = False
+        self.update()
 
     def on_text(self, event):
         new_val = self.GetValue()
@@ -85,6 +94,7 @@ class SudokuEditItem(wx.TextCtrl):
             # rules do not prohibit this value for this cell,
             # but some other cell(s) will become invalid
             self.error = self.E_NO_SOLUTION
+            self.tip = msg
             self.SetToolTipString(msg)
         finally:
             result = self.data.val
@@ -158,12 +168,19 @@ class SudokuEditPanel(wx.Panel):
         self.setup()
 
     def on_mouse_dbl_left(self, event):
+        x,y = event.GetPositionTuple()
+        print 'mouse event',x,y
         for g in self.grid:
             rect = wx.Rect()
             rect.SetPosition(g.GetPosition())
             rect.SetSize(g.GetSize())
-            if rect.ContainsXY(event.x,event.y):
-                g.update(False)
+            if rect.ContainsXY(x,y):
+                if g.data.fixed:
+                    g.data.fixed = False
+                else:
+                    if g.data.HasVal():
+                        g.data.fixed = True
+                g.update()
 
     def mark_invalid(self, lst):
         for item in self.grid:
