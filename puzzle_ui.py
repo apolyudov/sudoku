@@ -116,8 +116,10 @@ class SudokuEditPanel(wx.Panel):
         doc = self.sudoku.doc
         n_lines = doc.dim-1
 
-        offset = wx.Point(self.cell_size.x, self.cell_size.y)
-        size = self.cell_size
+        k = { 5:1, 4: 1.25, 3:1.5, 2:2 }
+
+        size = wx.Size(int(self.cell_size.x*k[doc.dim]), int(self.cell_size.y*k[doc.dim]))
+        offset = wx.Point(size.x, size.y)
         width = int(offset.x/10)
         extra_width = int(offset.x/10)
         self.do_lines = True
@@ -223,11 +225,11 @@ class MainFrame(wx.Frame):
         self.controls.add_button('Load', self.on_btn_load)
         self.controls.add_button('Save', self.on_btn_save)
 
-        self.cmbSelDim = wx.ComboBox(choices=['9x9', '16x16', '25x25'],
+        self.cmbSelDim = wx.ComboBox(choices=['2x2', '3x3', '4x4', '5x5'],
               parent=self.controls,
               pos=wx.Point(30, 250),
               size=wx.Size(60, size),
-              style=0, value='9x9')
+              style=0, value='3x3')
         self.cmbSelDim.Bind(wx.EVT_COMBOBOX, self.on_dim_combo)
         wx.StaticText(
               label='Size', parent=self.controls,
@@ -236,7 +238,7 @@ class MainFrame(wx.Frame):
         self.update_doc()
 
     def on_dim_combo(self, event):
-        dim = int(self.cmbSelDim.Selection) + 3
+        dim = int(self.cmbSelDim.Selection) + 2
         self.sudoku.setDim(dim)
 
     def on_btn_load(self, event):
@@ -320,13 +322,17 @@ class MainFrame(wx.Frame):
         self.controls.SetPosition((size.x,0))
         ctl_size = self.controls.GetBestSize()
         self.controls.SetSize((ctl_size.x,max(size.y,ctl_size.y)))
-        self.SetClientSize((size.x+ctl_size.x+self.ref_size, max(size.y,ctl_size.y) + self.ref_size))
-        self.load_game(self.file_name % self.sudoku.doc.dim)
+        y_diff = size.y - ctl_size.y
+        y_inc = 0
+        if y_diff < self.ref_size:
+            y_inc = self.ref_size - y_diff
+        self.SetClientSize((size.x+ctl_size.x+self.ref_size, size.y + y_inc))
+        self.load_game(self.file_name % self.sudoku.doc.dim, True)
         self.update()
         self.Thaw()
 
 def main_GUI(argv):
-    app = wx.App(redirect=True)
+    app = wx.App(redirect=False)
     doc = SudokuDocument()
     frame = MainFrame(doc)
     frame.update()
