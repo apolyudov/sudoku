@@ -349,7 +349,7 @@ class MainFrame(wx.Frame):
         self.Thaw()
 
 def main_GUI(argv):
-    app = wx.App(redirect=False)
+    app = wx.App(redirect=True)
     doc = SudokuDocument()
     frame = MainFrame(doc)
     frame.update()

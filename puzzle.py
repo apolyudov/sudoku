@@ -118,7 +118,7 @@ class SudokuView(object):
                 print "This will invalidate puzzle if applied. Reverted"
             else:
                 try:
-                    res,_=doc.Solve()
+                    res = doc.Solve()
                     if not res:
                         print "This change leads to multiple possible solutions"
                     doc.Populate(new)
@@ -269,13 +269,10 @@ class SudokuView(object):
                 if v != None: print v
             except KeyError,e:
                 print e
-                raise
             except IndexError,e:
                 print e
-                raise
             except ValueError,e:
                 print e
-                raise
             finally:
                 if e != None:
                     print "invalid command [%s]: '%s'" % (e," ".join(cmd))
