@@ -9,6 +9,7 @@ class SudokuEditItem(wx.TextCtrl):
         self.data = data
         self.pos = pos
         self.size = size
+        self.parent = parent
 
         wx.TextCtrl.__init__(
         self,
@@ -57,6 +58,9 @@ class SudokuEditItem(wx.TextCtrl):
                 self.BackgroundColour = (255,255,0,0)
             else:
                 self.BackgroundColour = (255,255,255,255)
+
+        if not self.parent.hints:
+            self.tip = None
 
         if self.tip != None:
             self.SetToolTipString(self.tip)
@@ -112,6 +116,7 @@ class SudokuEditPanel(wx.Panel):
         self.parent = parent
         self.cell_size = cell_size
         wx.Panel.__init__(self, parent = parent, pos = pos)
+        self.hints = True
         self.setup()
 
     def destroy(self):
@@ -167,6 +172,10 @@ class SudokuEditPanel(wx.Panel):
         self.destroy()
         self.setup()
 
+    def update_hints(self, enabled):
+        self.hints = enabled
+        self.update()
+
     def on_mouse_dbl_left(self, event):
         x,y = event.GetPositionTuple()
         print 'mouse event',x,y
@@ -221,6 +230,8 @@ class MainFrame(wx.Frame):
             style=wx.SYSTEM_MENU | wx.CAPTION | wx.CLOSE_BOX,
             title='Sudoku')
 
+        self.hints = False
+
         self.ID = self.GetId()
         self.sudoku = doc
         self.sudoku.open(self.update_doc)
@@ -231,6 +242,8 @@ class MainFrame(wx.Frame):
         self.sudoku_edit = SudokuEditPanel(self, pos = wx.Point(0,0),
                                            sudoku_doc = self.sudoku,
                                            cell_size = wx.Size(size,size))
+        self.sudoku_edit.update_hints(self.hints)
+
         sz = self.sudoku_edit.GetSize()
         self.controls = ButtonPanel(self, pos = wx.Point(sz.x, 0), size=wx.Size(100,sz.y), offset=size)
 
@@ -248,11 +261,24 @@ class MainFrame(wx.Frame):
               size=wx.Size(60, size),
               style=0, value='3x3')
         self.cmbSelDim.Bind(wx.EVT_COMBOBOX, self.on_dim_combo)
+
+        self.chkHints = wx.CheckBox(label='Hints',
+              parent=self.controls,
+              pos=wx.Point(0, 280),
+              size=wx.Size(60, size),
+              style=0)
+        self.chkHints.Bind(wx.EVT_CHECKBOX, self.on_hints_mode)
+
         wx.StaticText(
               label='Size', parent=self.controls,
               pos=wx.Point(0, 252), size=wx.Size(30, 12), style=0)
 
+        self.chkHints.SetValue(self.hints)
         self.update_doc()
+
+    def on_hints_mode(self, event):
+        self.hints = self.chkHints.GetValue()
+        self.sudoku_edit.update_hints(self.hints)
 
     def on_dim_combo(self, event):
         dim = int(self.cmbSelDim.Selection) + 2
