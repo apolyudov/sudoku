@@ -207,7 +207,7 @@ class MainFrame(wx.Frame):
         self.sudoku.open(self.update_doc)
         self.file_name = 'sudoku_game_%d.txt'
 
-        size = 25
+        self.ref_size = size = 25
 
         self.sudoku_edit = SudokuEditPanel(self, pos = wx.Point(0,0),
                                            sudoku_doc = self.sudoku,
@@ -226,7 +226,7 @@ class MainFrame(wx.Frame):
         self.cmbSelDim = wx.ComboBox(choices=['9x9', '16x16', '25x25'],
               parent=self.controls,
               pos=wx.Point(30, 250),
-              size=wx.Size(80, 30),
+              size=wx.Size(60, size),
               style=0, value='9x9')
         self.cmbSelDim.Bind(wx.EVT_COMBOBOX, self.on_dim_combo)
         wx.StaticText(
@@ -320,7 +320,7 @@ class MainFrame(wx.Frame):
         self.controls.SetPosition((size.x,0))
         ctl_size = self.controls.GetBestSize()
         self.controls.SetSize((ctl_size.x,max(size.y,ctl_size.y)))
-        self.SetClientSize((size.x+ctl_size.x,max(size.y,ctl_size.y)))
+        self.SetClientSize((size.x+ctl_size.x+self.ref_size, max(size.y,ctl_size.y) + self.ref_size))
         self.load_game(self.file_name % self.sudoku.doc.dim)
         self.update()
         self.Thaw()
