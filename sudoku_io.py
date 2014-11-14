@@ -138,6 +138,16 @@ def doc_write_stream(s_output, doc):
     return (True,)
 
 def doc_read_stream(stream, doc):
+
+    def doc_load_array(array, locked):
+        for x in array.split(','):
+            a = x.split(':')
+            if len(a) < 2: continue
+            idx,val = a
+            idx = int(idx)
+            val = val.strip()
+            doc.data[idx].setval(val, locked)
+
     unknown_doc = doc
     sudoku_doc = None
     doc = None
@@ -153,7 +163,7 @@ def doc_read_stream(stream, doc):
     text = stream.readline()
     dim,locked,unlocked=text.split(';')
     dim = int(dim)
-    
+
     if dim != doc.dim:
         if  sudoku_doc == None:
             raise ValueError('Sudoku object does not support dynamic change of dimension: doc.dim=%d; dim=%d' % (doc.dim, dim))
@@ -163,17 +173,7 @@ def doc_read_stream(stream, doc):
     else:
         doc.Populate()
 
-    for x in locked.split(','):
-        a = x.split(':')
-        if len(a) < 2: continue
-        idx,val = a
-        idx = int(idx)
-        doc.data[idx].setval(val, True)
-    for x in unlocked.split(','):
-        a= x.split(':')
-        if len(a) < 2: continue
-        idx,val = a
-        idx = int(idx)
-        doc.data[idx].setval(val)
+    doc_load_array(locked, True)
+    doc_load_array(unlocked, False)
 
     return (True,)

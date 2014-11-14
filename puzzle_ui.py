@@ -349,9 +349,15 @@ class MainFrame(wx.Frame):
 
     def update_title(self):
         try:
-            _, populated = self.sudoku.items()
+            fixed, populated = self.sudoku.items()
             kind  = self.cmbSelDim.GetValue()
-            title = 'Sudoku: %s [%d items]' % (kind, populated)
+            if fixed == populated:
+                status = 'generated'
+            elif populated < self.sudoku.doc.total:
+                status = 'in progress'
+            else:
+                status = 'solved'
+            title = 'Sudoku: %s [%d/%d items] %s' % (kind, fixed, populated, status)
         except Exception, e:
             title = 'Sudoku'
             print e
