@@ -381,7 +381,11 @@ class MainFrame(wx.Frame):
         self.Thaw()
 
 def main_GUI(argv):
-    app = wx.App(redirect=True)
+    if '-r-' in argv:
+        redirect = False
+    else:
+        redirect = True
+    app = wx.App(redirect=redirect)
     doc = SudokuDocument()
     frame = MainFrame(doc)
     frame.update()
